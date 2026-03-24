@@ -737,11 +737,21 @@ function showApp(){
   document.getElementById('user-display-role').textContent=ROLES[currentUser.role]||currentUser.role;
   document.getElementById('user-avatar').textContent=(currentUser.name||currentUser.email).charAt(0).toUpperCase();
   document.getElementById('btn-admin').style.display=currentUser.role==='admin'?'':'none';
-  // Hide add button for viewers
   document.getElementById('btn-add-entry').style.display=can('edit_entry')?'':'none';
-  // Hide industry mgmt for non-admin
   document.getElementById('btn-industry-mgmt').style.display=currentUser.role==='admin'?'':'none';
   updateSidebar();renderTable();refreshNoticeBar();refreshNoticeCount();
+  // Show pending user count for admin
+  if(currentUser.role==='admin'){
+    const pendingCount=getUsers().filter(u=>u.status==='pending').length;
+    const adminBtn=document.getElementById('btn-admin');
+    if(pendingCount>0){
+      adminBtn.innerHTML=`<span>⚙️</span> Quản lý người dùng <span style="background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px;font-family:'DM Mono',monospace;animation:pulse-badge 2s infinite">${pendingCount}</span>`;
+      // Auto show toast
+      toast('Có '+pendingCount+' tài khoản chờ phê duyệt!','🔔');
+    }else{
+      adminBtn.innerHTML='<span>⚙️</span> Quản lý người dùng';
+    }
+  }
 }
 
 // ═══ ADMIN PANEL ═══
@@ -787,11 +797,22 @@ function openAdminPanel(){
   openModal('modal-admin');
 }
 
-function approveUser(e){const u=getUsers();const x=u.find(a=>a.email===e);if(x){x.status='approved';saveUsers(u);toast('Đã phê duyệt '+x.name,'✅');openAdminPanel()}}
-function rejectUser(e){const u=getUsers();const x=u.find(a=>a.email===e);if(x){x.status='rejected';saveUsers(u);toast('Đã từ chối','🚫');openAdminPanel()}}
+function approveUser(e){const u=getUsers();const x=u.find(a=>a.email===e);if(x){x.status='approved';saveUsers(u);toast('Đã phê duyệt '+x.name,'✅');openAdminPanel();refreshAdminBadge()}}
+function rejectUser(e){const u=getUsers();const x=u.find(a=>a.email===e);if(x){x.status='rejected';saveUsers(u);toast('Đã từ chối','🚫');openAdminPanel();refreshAdminBadge()}}
 function changeUserRole(e,role){const u=getUsers();const x=u.find(a=>a.email===e);if(x){x.role=role;saveUsers(u);toast('Đã đổi vai trò','✅');openAdminPanel()}}
 function resetUserPassword(e){const p=prompt('Mật khẩu mới cho '+e+':');if(!p||p.length<6){toast('MK phải >= 6 ký tự','⚠️');return}const u=getUsers();const x=u.find(a=>a.email===e);if(x){x.password=p;saveUsers(u);toast('Đã reset MK','✅')}}
-function deleteUser(e){if(!confirm('Xoá tài khoản '+e+'?'))return;saveUsers(getUsers().filter(u=>u.email!==e));toast('Đã xoá','🗑');openAdminPanel()}
+function deleteUser(e){if(!confirm('Xoá tài khoản '+e+'?'))return;saveUsers(getUsers().filter(u=>u.email!==e));toast('Đã xoá','🗑');openAdminPanel();refreshAdminBadge()}
+
+function refreshAdminBadge(){
+  if(!currentUser||currentUser.role!=='admin')return;
+  const cnt=getUsers().filter(u=>u.status==='pending').length;
+  const btn=document.getElementById('btn-admin');
+  if(cnt>0){
+    btn.innerHTML=`<span>⚙️</span> Quản lý người dùng <span style="background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px;font-family:'DM Mono',monospace;animation:pulse-badge 2s infinite">${cnt}</span>`;
+  }else{
+    btn.innerHTML='<span>⚙️</span> Quản lý người dùng';
+  }
+}
 
 // ═══ STATE ═══
 let state=JSON.parse(localStorage.getItem('pricehub')||'null')||{entries:[],industries:['Vật liệu xây dựng','Thiết bị điện','Cơ khí','Hàng hóa TM'],notices:[]};
