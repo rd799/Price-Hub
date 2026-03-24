@@ -636,25 +636,12 @@ td{padding:11px 14px;font-size:13.5px;color:var(--text);vertical-align:middle}
 <script>
 // ═══ SUPABASE ═══
 const SUPABASE_URL='https://gqisjvyjdbtxzbvylmwh.supabase.co';
-const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxaXNqdnlqZGJ0eHpidnlsbXdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY5MzQ0MDAsImV4cCI6MjA1MjUxMDQwMH0.Wr5uZh3hLVOQIPymHrOV-w_NqxfcnBs';
-let sb=null;
-try{if(typeof supabase!=='undefined'&&supabase.createClient){sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY)}}catch(e){}
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxaXNqdnlqZGJ0eHpidnlsbXdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0NDExNTQsImV4cCI6MjA4OTAxNzE1NH0.bpNSJJBA_DXfLyLeb7Q3ywcRcq5qEkNNhQTdKMUQ-fg';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ═══ AUTH ═══
-const ADMIN_EMAIL='rd@nsca',ADMIN_PASS='Nokey@92',ADMIN_MAIL='rd@nsca.vn';
+const ADMIN_MAIL='rd@nsca.vn';
 const ROLES={admin:'Admin',editor:'Cấp 1 (Biên tập)',viewer:'Người dùng'};
-
-function getUsers(){return JSON.parse(localStorage.getItem('pricehub_users')||'[]')}
-function saveUsers(u){localStorage.setItem('pricehub_users',JSON.stringify(u))}
-
-(function initAdmin(){
-  let u=getUsers();
-  if(!u.find(x=>x.email===ADMIN_EMAIL)){
-    u.push({email:ADMIN_EMAIL,password:ADMIN_PASS,name:'Admin R&D',role:'admin',status:'approved',createdAt:new Date().toISOString()});
-    saveUsers(u);
-  }
-})();
-
 let currentUser=JSON.parse(sessionStorage.getItem('pricehub_session')||'null');
 
 function can(action){
@@ -685,21 +672,21 @@ function switchAuthTab(tab){
 function showAuthMsg(m,t){const el=document.getElementById('auth-message');el.textContent=m;el.className='auth-msg '+t}
 function clearAuthMsg(){const el=document.getElementById('auth-message');el.className='auth-msg';el.textContent=''}
 
-function doLogin(){
+async function doLogin(){
   const email=document.getElementById('login-email').value.trim();
   const pass=document.getElementById('login-pass').value;
   if(!email||!pass){showAuthMsg('Vui lòng nhập đầy đủ thông tin','error');return}
-  const users=getUsers();
-  const user=users.find(u=>u.email===email);
-  if(!user||user.password!==pass){showAuthMsg('Sai tên đăng nhập hoặc mật khẩu','error');return}
-  if(user.status==='pending'){showAuthMsg('Tài khoản đang chờ Admin phê duyệt. Liên hệ '+ADMIN_MAIL,'info');return}
-  if(user.status==='rejected'){showAuthMsg('Tài khoản bị từ chối. Liên hệ Admin.','error');return}
-  currentUser={email:user.email,name:user.name,role:user.role};
+  const{data,error}=await sb.from('pricehub_users').select('*').eq('email',email).eq('password',pass).maybeSingle();
+  if(error){showAuthMsg('Lỗi kết nối: '+error.message,'error');return}
+  if(!data){showAuthMsg('Sai tên đăng nhập hoặc mật khẩu','error');return}
+  if(data.status==='pending'){showAuthMsg('Tài khoản đang chờ Admin phê duyệt. Liên hệ '+ADMIN_MAIL,'info');return}
+  if(data.status==='rejected'){showAuthMsg('Tài khoản bị từ chối. Liên hệ Admin.','error');return}
+  currentUser={email:data.email,name:data.name,role:data.role};
   sessionStorage.setItem('pricehub_session',JSON.stringify(currentUser));
   showApp();
 }
 
-function doRegister(){
+async function doRegister(){
   const name=document.getElementById('reg-name').value.trim();
   const email=document.getElementById('reg-email').value.trim();
   const pass=document.getElementById('reg-pass').value;
@@ -707,30 +694,27 @@ function doRegister(){
   if(!name||!email||!pass){showAuthMsg('Vui lòng nhập đầy đủ thông tin','error');return}
   if(pass.length<6){showAuthMsg('Mật khẩu cần tối thiểu 6 ký tự','error');return}
   if(pass!==pass2){showAuthMsg('Xác nhận mật khẩu không khớp','error');return}
-  const users=getUsers();
-  if(users.find(u=>u.email===email)){showAuthMsg('Email này đã được đăng ký','error');return}
-  users.push({email,password:pass,name,role:'viewer',status:'pending',createdAt:new Date().toISOString()});
-  saveUsers(users);
+  const{data:existing}=await sb.from('pricehub_users').select('email').eq('email',email).maybeSingle();
+  if(existing){showAuthMsg('Email đã được đăng ký','error');return}
+  const{error}=await sb.from('pricehub_users').insert({email,password:pass,name,role:'viewer',status:'pending'});
+  if(error){showAuthMsg('Lỗi: '+error.message,'error');return}
   showAuthMsg('Đăng ký thành công! Chờ Admin phê duyệt. Liên hệ '+ADMIN_MAIL,'success');
   ['reg-name','reg-email','reg-pass','reg-pass2'].forEach(id=>document.getElementById(id).value='');
 }
 
 function doForgotPassword(){
   const email=document.getElementById('login-email').value.trim();
-  if(!email){showAuthMsg('Nhập email/tên đăng nhập trước','error');return}
-  const users=getUsers();
-  if(!users.find(u=>u.email===email)){showAuthMsg('Không tìm thấy tài khoản','error');return}
-  showAuthMsg('Yêu cầu đặt lại mật khẩu đã gửi đến Admin ('+ADMIN_MAIL+'). Vui lòng liên hệ.','info');
+  if(!email){showAuthMsg('Nhập email trước','error');return}
+  showAuthMsg('Yêu cầu đặt lại MK đã gửi đến Admin ('+ADMIN_MAIL+')','info');
 }
 
 function doLogout(){
   currentUser=null;sessionStorage.removeItem('pricehub_session');
   document.getElementById('app-main').classList.remove('show');
-  document.getElementById('auth-screen').style.display='';
-  clearAuthMsg();
+  document.getElementById('auth-screen').style.display='';clearAuthMsg();
 }
 
-function showApp(){
+async function showApp(){
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('app-main').classList.add('show');
   document.getElementById('user-display-name').textContent=currentUser.name||currentUser.email;
@@ -739,469 +723,174 @@ function showApp(){
   document.getElementById('btn-admin').style.display=currentUser.role==='admin'?'':'none';
   document.getElementById('btn-add-entry').style.display=can('edit_entry')?'':'none';
   document.getElementById('btn-industry-mgmt').style.display=currentUser.role==='admin'?'':'none';
-  updateSidebar();renderTable();refreshNoticeBar();refreshNoticeCount();
-  // Show pending user count for admin
+  await loadAllData();
   if(currentUser.role==='admin'){
-    const pendingCount=getUsers().filter(u=>u.status==='pending').length;
-    const adminBtn=document.getElementById('btn-admin');
-    if(pendingCount>0){
-      adminBtn.innerHTML=`<span>⚙️</span> Quản lý người dùng <span style="background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px;font-family:'DM Mono',monospace;animation:pulse-badge 2s infinite">${pendingCount}</span>`;
-      // Auto show toast
-      toast('Có '+pendingCount+' tài khoản chờ phê duyệt!','🔔');
-    }else{
-      adminBtn.innerHTML='<span>⚙️</span> Quản lý người dùng';
-    }
+    const{data:pending}=await sb.from('pricehub_users').select('id').eq('status','pending');
+    const cnt=(pending||[]).length;
+    const btn=document.getElementById('btn-admin');
+    if(cnt>0){btn.innerHTML='<span>⚙️</span> Quản lý người dùng <span style="background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px;font-family:\'DM Mono\',monospace;animation:pulse-badge 2s infinite">'+cnt+'</span>';toast('Có '+cnt+' TK chờ phê duyệt!','🔔');}
+    else{btn.innerHTML='<span>⚙️</span> Quản lý người dùng';}
   }
 }
 
-// ═══ ADMIN PANEL ═══
-function openAdminPanel(){
-  if(!currentUser||currentUser.role!=='admin'){toast('Chỉ Admin','⚠️');return}
-  const users=getUsers();
-  const pending=users.filter(u=>u.status==='pending');
-  const all=users.filter(u=>u.email!==ADMIN_EMAIL);
+// ═══ ADMIN ═══
+async function openAdminPanel(){
+  if(!currentUser||currentUser.role!=='admin')return;
+  const{data:users}=await sb.from('pricehub_users').select('*').order('created_at',{ascending:false});
+  const all=(users||[]).filter(u=>!(u.role==='admin'&&u.email==='rd@nsca'));
+  const pending=all.filter(u=>u.status==='pending');
   const pendingEl=document.getElementById('admin-pending-list');
-  if(!pending.length){
-    pendingEl.innerHTML='<div style="color:var(--text-muted);font-size:12.5px">Không có tài khoản chờ duyệt</div>';
-  }else{
-    pendingEl.innerHTML=`<table class="admin-users-table"><thead><tr><th>Tên</th><th>Email</th><th>Ngày ĐK</th><th>Thao tác</th></tr></thead><tbody>`+
-      pending.map(u=>`<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td style="font-family:'DM Mono',monospace;font-size:11px">${(u.createdAt||'').slice(0,10)}</td><td>
-        <button class="btn btn-primary btn-sm" onclick="approveUser('${esc(u.email)}')">✅ Duyệt</button>
-        <button class="btn btn-danger btn-sm" onclick="rejectUser('${esc(u.email)}')" style="margin-left:4px">✕</button>
-      </td></tr>`).join('')+`</tbody></table>`;
-  }
+  if(!pending.length){pendingEl.innerHTML='<div style="color:var(--text-muted);font-size:12.5px">Không có TK chờ duyệt</div>';}
+  else{pendingEl.innerHTML='<table class="admin-users-table"><thead><tr><th>Tên</th><th>Email</th><th>Ngày ĐK</th><th>Thao tác</th></tr></thead><tbody>'+pending.map(u=>'<tr><td>'+esc(u.name)+'</td><td>'+esc(u.email)+'</td><td style="font-family:\'DM Mono\',monospace;font-size:11px">'+(u.created_at||'').slice(0,10)+'</td><td><button class="btn btn-primary btn-sm" onclick="approveUser(\''+u.id+'\')">✅ Duyệt</button> <button class="btn btn-danger btn-sm" onclick="rejectUser(\''+u.id+'\')">✕</button></td></tr>').join('')+'</tbody></table>';}
   const allEl=document.getElementById('admin-all-users');
-  if(!all.length){
-    allEl.innerHTML='<div style="color:var(--text-muted);font-size:12.5px">Chưa có người dùng</div>';
-  }else{
-    allEl.innerHTML=`<table class="admin-users-table"><thead><tr><th>Tên</th><th>Email</th><th>Vai trò</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>`+
-      all.map(u=>{
-        const roleBadge=u.role==='admin'?'role-admin':u.role==='editor'?'role-editor':'role-viewer';
-        const statusBadge=u.status==='approved'?'badge-approved':u.status==='pending'?'badge-pending':'badge-status status-expired';
-        const statusText=u.status==='approved'?'Đã duyệt':u.status==='pending'?'Chờ duyệt':'Từ chối';
-        return `<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td>
-          <td><span class="badge-role ${roleBadge}">${ROLES[u.role]||u.role}</span></td>
-          <td><span class="${statusBadge}">${statusText}</span></td>
-          <td style="white-space:nowrap">
-            <select onchange="changeUserRole('${esc(u.email)}',this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-family:'DM Sans',sans-serif">
-              <option value="viewer"${u.role==='viewer'?' selected':''}>Người dùng</option>
-              <option value="editor"${u.role==='editor'?' selected':''}>Cấp 1</option>
-              <option value="admin"${u.role==='admin'?' selected':''}>Admin</option>
-            </select>
-            ${u.status!=='approved'?`<button class="btn btn-primary btn-sm" onclick="approveUser('${esc(u.email)}')" style="margin-left:4px">Duyệt</button>`:''}
-            <button class="btn btn-outline btn-sm" onclick="resetUserPassword('${esc(u.email)}')" style="margin-left:4px">🔑</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteUser('${esc(u.email)}')" style="margin-left:4px">🗑</button>
-          </td></tr>`;
-      }).join('')+`</tbody></table>`;
-  }
+  if(!all.length){allEl.innerHTML='<div style="color:var(--text-muted);font-size:12.5px">Chưa có người dùng</div>';}
+  else{allEl.innerHTML='<table class="admin-users-table"><thead><tr><th>Tên</th><th>Email</th><th>Vai trò</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>'+all.map(u=>{
+    const rb=u.role==='admin'?'role-admin':u.role==='editor'?'role-editor':'role-viewer';
+    const sb2=u.status==='approved'?'badge-approved':u.status==='pending'?'badge-pending':'badge-status status-expired';
+    const st=u.status==='approved'?'Đã duyệt':u.status==='pending'?'Chờ duyệt':'Từ chối';
+    return '<tr><td>'+esc(u.name)+'</td><td>'+esc(u.email)+'</td><td><span class="badge-role '+rb+'">'+(ROLES[u.role]||u.role)+'</span></td><td><span class="'+sb2+'">'+st+'</span></td><td style="white-space:nowrap"><select onchange="changeUserRole(\''+u.id+'\',this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px"><option value="viewer"'+(u.role==='viewer'?' selected':'')+'>Người dùng</option><option value="editor"'+(u.role==='editor'?' selected':'')+'>Cấp 1</option><option value="admin"'+(u.role==='admin'?' selected':'')+'>Admin</option></select>'+(u.status!=='approved'?' <button class="btn btn-primary btn-sm" onclick="approveUser(\''+u.id+'\')">Duyệt</button>':'')+' <button class="btn btn-outline btn-sm" onclick="resetUserPassword(\''+u.id+'\')">🔑</button> <button class="btn btn-danger btn-sm" onclick="deleteUser(\''+u.id+'\')">🗑</button></td></tr>';
+  }).join('')+'</tbody></table>';}
   openModal('modal-admin');
 }
 
-function approveUser(e){const u=getUsers();const x=u.find(a=>a.email===e);if(x){x.status='approved';saveUsers(u);toast('Đã phê duyệt '+x.name,'✅');openAdminPanel();refreshAdminBadge()}}
-function rejectUser(e){const u=getUsers();const x=u.find(a=>a.email===e);if(x){x.status='rejected';saveUsers(u);toast('Đã từ chối','🚫');openAdminPanel();refreshAdminBadge()}}
-function changeUserRole(e,role){const u=getUsers();const x=u.find(a=>a.email===e);if(x){x.role=role;saveUsers(u);toast('Đã đổi vai trò','✅');openAdminPanel()}}
-function resetUserPassword(e){const p=prompt('Mật khẩu mới cho '+e+':');if(!p||p.length<6){toast('MK phải >= 6 ký tự','⚠️');return}const u=getUsers();const x=u.find(a=>a.email===e);if(x){x.password=p;saveUsers(u);toast('Đã reset MK','✅')}}
-function deleteUser(e){if(!confirm('Xoá tài khoản '+e+'?'))return;saveUsers(getUsers().filter(u=>u.email!==e));toast('Đã xoá','🗑');openAdminPanel();refreshAdminBadge()}
-
-function refreshAdminBadge(){
-  if(!currentUser||currentUser.role!=='admin')return;
-  const cnt=getUsers().filter(u=>u.status==='pending').length;
-  const btn=document.getElementById('btn-admin');
-  if(cnt>0){
-    btn.innerHTML=`<span>⚙️</span> Quản lý người dùng <span style="background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px;font-family:'DM Mono',monospace;animation:pulse-badge 2s infinite">${cnt}</span>`;
-  }else{
-    btn.innerHTML='<span>⚙️</span> Quản lý người dùng';
-  }
-}
+async function approveUser(id){await sb.from('pricehub_users').update({status:'approved'}).eq('id',id);toast('Đã phê duyệt','✅');openAdminPanel()}
+async function rejectUser(id){await sb.from('pricehub_users').update({status:'rejected'}).eq('id',id);toast('Đã từ chối','🚫');openAdminPanel()}
+async function changeUserRole(id,role){await sb.from('pricehub_users').update({role}).eq('id',id);toast('Đã đổi vai trò','✅');openAdminPanel()}
+async function resetUserPassword(id){const p=prompt('Mật khẩu mới:');if(!p||p.length<6){toast('MK >= 6 ký tự','⚠️');return}await sb.from('pricehub_users').update({password:p}).eq('id',id);toast('Đã reset MK','✅')}
+async function deleteUser(id){if(!confirm('Xoá tài khoản?'))return;await sb.from('pricehub_users').delete().eq('id',id);toast('Đã xoá','🗑');openAdminPanel()}
 
 // ═══ STATE ═══
-let state=JSON.parse(localStorage.getItem('pricehub')||'null')||{entries:[],industries:['Vật liệu xây dựng','Thiết bị điện','Cơ khí','Hàng hóa TM'],notices:[]};
+let state={entries:[],industries:[],notices:[]};
 let currentView='all',currentIndustry='',currentGroup='',currentType='',editingId=null,renamingIndustry=null;
-const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-const save=()=>localStorage.setItem('pricehub',JSON.stringify(state));
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
-// ═══ STATUS ═══
-function getStatus(e){
-  if(!e.dateTo&&!e.dateFrom)return 'nodate';
-  const t=new Date();t.setHours(0,0,0,0);
-  if(e.dateTo){const to=new Date(e.dateTo);if(to<t)return'expired';if((to-t)/864e5<=30)return'expiring'}
-  if(e.dateFrom){if(new Date(e.dateFrom)>t)return'expiring'}
-  return'active';
+function mapEntry(r){return{id:r.id,name:r.name,description:r.description||'',url:r.url,industry:r.industry||'',group:r['group']||'',type:r.type||'sheet',supplier:r.supplier||'',dateFrom:r.date_from||'',dateTo:r.date_to||'',note:r.note||'',pct:r.pct,updatedBy:r.updated_by||'',updatedAt:r.updated_at||'',history:r.history||[],appendixLinks:r.appendix_links||[]}}
+function mapNotice(r){return{id:r.id,title:r.title||'',content:r.content||'',url:r.url||'',date:r.date||'',industry:r.industry||''}}
+
+async function loadAllData(){
+  const{data:entries}=await sb.from('pricehub_entries').select('*').order('created_at',{ascending:false});
+  state.entries=(entries||[]).map(mapEntry);
+  const{data:industries}=await sb.from('pricehub_industries').select('name').order('name');
+  state.industries=(industries||[]).map(i=>i.name);
+  const{data:notices}=await sb.from('pricehub_notices').select('*').order('created_at',{ascending:false});
+  state.notices=(notices||[]).map(mapNotice);
+  updateSidebar();renderTable();refreshNoticeBar();refreshNoticeCount();
 }
+
+// ═══ STATUS ═══
+function getStatus(e){if(!e.dateTo&&!e.dateFrom)return'nodate';const t=new Date();t.setHours(0,0,0,0);if(e.dateTo){const to=new Date(e.dateTo);if(to<t)return'expired';if((to-t)/864e5<=30)return'expiring'}if(e.dateFrom&&new Date(e.dateFrom)>t)return'expiring';return'active'}
 function statusLabel(s){return{active:'Hiệu lực',expiring:'Sắp hết hạn',expired:'Hết hạn',nodate:'Không hạn'}[s]||s}
 function statusClass(s){return{active:'status-active',expiring:'status-expiring',expired:'status-expired',nodate:'status-nodate'}[s]||''}
 function typeLabel(t){if(t==='sheet')return'<span class="type-pill pill-sheet">Sheet</span>';if(t==='doc')return'<span class="type-pill pill-doc">Doc</span>';return'<span class="type-pill pill-other">Khác</span>'}
 
 // ═══ SIDEBAR ═══
 function updateSidebar(){
-  let cnt=state.entries.length;
-  document.getElementById('badge-all').textContent=cnt;
-  const nav=document.getElementById('industry-nav');
-  nav.innerHTML=state.industries.map(ind=>{
+  document.getElementById('badge-all').textContent=state.entries.length;
+  document.getElementById('industry-nav').innerHTML=state.industries.map(ind=>{
     const c=state.entries.filter(e=>e.industry===ind).length;
-    const active=currentIndustry===ind?' active':'';
-    return`<button class="nav-item${active}" onclick="setViewIndustry('${esc(ind)}')"><span>📦</span> ${esc(ind)}<span class="badge">${c}</span></button>`;
+    return'<button class="nav-item'+(currentIndustry===ind?' active':'')+'" onclick="setViewIndustry(\''+esc(ind)+'\')"><span>📦</span> '+esc(ind)+'<span class="badge">'+c+'</span></button>';
   }).join('');
-  document.getElementById('s-total').textContent=cnt;
+  document.getElementById('s-total').textContent=state.entries.length;
   document.getElementById('s-industries').textContent=state.industries.length;
 }
 
-function setView(v){
-  currentView=v;currentIndustry='';
-  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
-  const el=document.getElementById('nav-'+v);if(el)el.classList.add('active');
-  document.getElementById('topbar-title').innerHTML='Tất cả báo giá <span id="topbar-sub"></span>';
-  document.getElementById('table-title').textContent='Danh sách báo giá';
-  document.getElementById('table-badge').style.display='none';
-  renderTable();
-}
-
-function setViewIndustry(ind){
-  currentView='industry';currentIndustry=ind;
-  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
-  document.getElementById('topbar-title').innerHTML=`${esc(ind)} <span id="topbar-sub"></span>`;
-  document.getElementById('table-title').textContent=ind;
-  const b=document.getElementById('table-badge');b.textContent='Ngành hàng';b.style.display='';
-  renderTable();updateSidebar();
-}
-
+function setView(v){currentView=v;currentIndustry='';document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));const el=document.getElementById('nav-'+v);if(el)el.classList.add('active');document.getElementById('topbar-title').innerHTML='Tất cả báo giá <span id="topbar-sub"></span>';document.getElementById('table-title').textContent='Danh sách báo giá';document.getElementById('table-badge').style.display='none';renderTable()}
+function setViewIndustry(ind){currentView='industry';currentIndustry=ind;document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));document.getElementById('topbar-title').innerHTML=esc(ind)+' <span id="topbar-sub"></span>';document.getElementById('table-title').textContent=ind;const b=document.getElementById('table-badge');b.textContent='Ngành hàng';b.style.display='';renderTable();updateSidebar()}
 function filterGroup(v){currentGroup=v;renderTable()}
 function filterType(v){currentType=v;renderTable()}
 
 // ═══ TABLE ═══
 function renderTable(){
   const q=document.getElementById('search-inp').value.toLowerCase();
-  let data=state.entries.filter(e=>{
-    if(currentView==='industry'&&e.industry!==currentIndustry)return false;
-    if(currentGroup&&e.group!==currentGroup)return false;
-    if(currentType&&e.type!==currentType)return false;
-    if(q&&!e.name.toLowerCase().includes(q)&&!(e.supplier||'').toLowerCase().includes(q)&&!(e.group||'').toLowerCase().includes(q))return false;
-    return true;
-  });
+  let data=state.entries.filter(e=>{if(currentView==='industry'&&e.industry!==currentIndustry)return false;if(currentGroup&&e.group!==currentGroup)return false;if(currentType&&e.type!==currentType)return false;if(q&&!e.name.toLowerCase().includes(q)&&!(e.supplier||'').toLowerCase().includes(q)&&!(e.group||'').toLowerCase().includes(q))return false;return true});
   const groups=[...new Set(state.entries.map(e=>e.group).filter(Boolean))];
-  const gSel=document.getElementById('group-filter');
-  const gVal=gSel.value;
-  gSel.innerHTML='<option value="">Tất cả nhóm SP</option>'+groups.map(g=>`<option value="${esc(g)}"${gVal===g?' selected':''}>${esc(g)}</option>`).join('');
+  const gSel=document.getElementById('group-filter');const gVal=gSel.value;
+  gSel.innerHTML='<option value="">Tất cả nhóm SP</option>'+groups.map(g=>'<option value="'+esc(g)+'"'+(gVal===g?' selected':'')+'>'+esc(g)+'</option>').join('');
   const tbody=document.getElementById('table-body');
-  if(!data.length){tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:48px;color:var(--text-muted)">📂 Không có dữ liệu</td></tr>`;return}
-
+  if(!data.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:48px;color:var(--text-muted)">📂 Không có dữ liệu</td></tr>';return}
   const canEdit=can('edit_entry');
   tbody.innerHTML=data.map((e,i)=>{
     const s=getStatus(e);
-    const dateRange=e.dateFrom||e.dateTo
-      ?`<div style="font-size:11.5px;font-family:'DM Mono',monospace;color:var(--text-2);line-height:1.6">${e.dateFrom?'▶ '+fmtDate(e.dateFrom):'▶ ---'}<br>${e.dateTo?'◀ '+fmtDate(e.dateTo):'◀ ---'}</div>`
-      :`<span style="color:var(--text-muted);font-size:12px">Không hạn</span>`;
-    const pctH=e.pct!=null&&e.pct!==''?`<span class="pct-badge ${e.pct>=0?'pct-up':'pct-down'}">${e.pct>=0?'▲':'▼'} ${Math.abs(e.pct)}%</span>`:'';
-    const hLen=(e.history||[]).length;
-    const descH=e.description?`<div class="td-desc" title="${esc(e.description)}">${esc(e.description)}</div>`:'';
-    const appendixCount=(e.appendixLinks||[]).length;
-    const appendixBadge=appendixCount?`<span style="font-size:10px;color:var(--primary);margin-left:4px">📎${appendixCount}</span>`:'';
-
-    return`<tr onclick="${canEdit?"openEdit('"+e.id+"')":"void(0)"}" style="cursor:${canEdit?'pointer':'default'}">
-      <td style="color:var(--text-muted);font-family:'DM Mono',monospace;font-size:12px">${i+1}</td>
-      <td class="td-name">
-        ${esc(e.name)}${appendixBadge}
-        ${e.supplier?`<div style="font-size:11.5px;color:var(--text-muted);font-weight:400;margin-top:2px">${esc(e.supplier)}</div>`:''}
-        ${descH}${pctH}
-      </td>
-      <td style="font-size:12.5px;color:var(--text-2)">${esc(e.group||'—')}</td>
-      <td>${typeLabel(e.type)}</td>
-      <td>${dateRange}</td>
-      <td><span class="badge-status ${statusClass(s)}">${statusLabel(s)}</span></td>
-      <td class="td-note"><span class="truncate" title="${esc(e.note||'')}">${esc(e.note||'—')}</span></td>
-      <td onclick="event.stopPropagation()"><div class="td-actions">
-        <a class="icon-btn open" href="${esc(e.url)}" target="_blank" title="Mở file">🔗</a>
-        <button class="icon-btn hist" onclick="openHistory('${e.id}')" title="Lịch sử">📜${hLen>0?`<sup style='font-size:9px;color:var(--green)'>${hLen}</sup>`:''}</button>
-        ${canEdit?`<button class="icon-btn" onclick="openEdit('${e.id}')" title="Sửa">✏️</button>
-        <button class="icon-btn del" onclick="deleteEntry('${e.id}')" title="Xoá">🗑</button>`:''}
-      </div></td>
-    </tr>`;
+    const dr=e.dateFrom||e.dateTo?'<div style="font-size:11.5px;font-family:\'DM Mono\',monospace;color:var(--text-2);line-height:1.6">'+(e.dateFrom?'▶ '+fmtDate(e.dateFrom):'▶ ---')+'<br>'+(e.dateTo?'◀ '+fmtDate(e.dateTo):'◀ ---')+'</div>':'<span style="color:var(--text-muted);font-size:12px">Không hạn</span>';
+    const pH=e.pct!=null&&e.pct!==''?'<span class="pct-badge '+(e.pct>=0?'pct-up':'pct-down')+'">'+(e.pct>=0?'▲':'▼')+' '+Math.abs(e.pct)+'%</span>':'';
+    const hL=(e.history||[]).length;const dH=e.description?'<div class="td-desc" title="'+esc(e.description)+'">'+esc(e.description)+'</div>':'';
+    const aC=(e.appendixLinks||[]).length;const aB=aC?'<span style="font-size:10px;color:var(--primary);margin-left:4px">📎'+aC+'</span>':'';
+    return'<tr onclick="'+(canEdit?"openEdit('"+e.id+"')":"void(0)")+'" style="cursor:'+(canEdit?'pointer':'default')+'"><td style="color:var(--text-muted);font-family:\'DM Mono\',monospace;font-size:12px">'+(i+1)+'</td><td class="td-name">'+esc(e.name)+aB+(e.supplier?'<div style="font-size:11.5px;color:var(--text-muted);font-weight:400;margin-top:2px">'+esc(e.supplier)+'</div>':'')+dH+pH+'</td><td style="font-size:12.5px;color:var(--text-2)">'+esc(e.group||'—')+'</td><td>'+typeLabel(e.type)+'</td><td>'+dr+'</td><td><span class="badge-status '+statusClass(s)+'">'+statusLabel(s)+'</span></td><td class="td-note"><span class="truncate" title="'+esc(e.note||'')+'">'+esc(e.note||'—')+'</span></td><td onclick="event.stopPropagation()"><div class="td-actions"><a class="icon-btn open" href="'+esc(e.url)+'" target="_blank" title="Mở">🔗</a><button class="icon-btn hist" onclick="openHistory(\''+e.id+'\')" title="Lịch sử">📜'+(hL>0?'<sup style=\'font-size:9px;color:var(--green)\'>'+hL+'</sup>':'')+'</button>'+(canEdit?'<button class="icon-btn" onclick="openEdit(\''+e.id+'\')" title="Sửa">✏️</button><button class="icon-btn del" onclick="deleteEntry(\''+e.id+'\')" title="Xoá">🗑</button>':'')+'</div></td></tr>';
   }).join('');
-  const sub=document.getElementById('topbar-sub');if(sub)sub.textContent=`(${data.length} file)`;
+  const sub=document.getElementById('topbar-sub');if(sub)sub.textContent='('+data.length+' file)';
 }
 
-function fmtDate(d){if(!d)return'';const[y,m,dd]=d.split('-');return`${dd}/${m}/${y}`}
+function fmtDate(d){if(!d)return'';const p=d.split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:d}
 
-// ═══ APPENDIX LINKS ═══
-function getAppendixRows(){
-  const rows=document.querySelectorAll('#appendix-rows .appendix-row');
-  const links=[];
-  rows.forEach(r=>{
-    const url=r.querySelector('.ap-url').value.trim();
-    const desc=r.querySelector('.ap-desc').value.trim();
-    if(url||desc)links.push({url,desc});
-  });
-  return links;
-}
-
-function addAppendixRow(url='',desc=''){
-  const container=document.getElementById('appendix-rows');
-  const row=document.createElement('div');
-  row.className='appendix-row';
-  row.innerHTML=`
-    <input class="form-input ap-url" type="url" placeholder="https://docs.google.com/..." value="${esc(url)}" style="flex:2">
-    <input class="form-input ap-desc" placeholder="Mô tả đường dẫn..." value="${esc(desc)}" style="flex:1.5">
-    <button class="btn-ghost" onclick="this.parentElement.remove();updateAppendixEmpty()" title="Xoá">✕</button>
-  `;
-  container.appendChild(row);
-  updateAppendixEmpty();
-}
-
-function updateAppendixEmpty(){
-  const rows=document.querySelectorAll('#appendix-rows .appendix-row');
-  document.getElementById('appendix-empty').style.display=rows.length?'none':'block';
-}
-
-function renderAppendixRows(links){
-  document.getElementById('appendix-rows').innerHTML='';
-  if(links&&links.length){links.forEach(l=>addAppendixRow(l.url||'',l.desc||''))}
-  updateAppendixEmpty();
-}
+// ═══ APPENDIX ═══
+function getAppendixRows(){const rows=document.querySelectorAll('#appendix-rows .appendix-row');const links=[];rows.forEach(r=>{const u=r.querySelector('.ap-url').value.trim();const d=r.querySelector('.ap-desc').value.trim();if(u||d)links.push({url:u,desc:d})});return links}
+function addAppendixRow(url,desc){url=url||'';desc=desc||'';const c=document.getElementById('appendix-rows');const r=document.createElement('div');r.className='appendix-row';r.innerHTML='<input class="form-input ap-url" type="url" placeholder="https://..." value="'+esc(url)+'" style="flex:2"><input class="form-input ap-desc" placeholder="Mô tả..." value="'+esc(desc)+'" style="flex:1.5"><button class="btn-ghost" onclick="this.parentElement.remove();updateAppendixEmpty()" title="Xoá">✕</button>';c.appendChild(r);updateAppendixEmpty()}
+function updateAppendixEmpty(){document.getElementById('appendix-empty').style.display=document.querySelectorAll('#appendix-rows .appendix-row').length?'none':'block'}
+function renderAppendixRows(links){document.getElementById('appendix-rows').innerHTML='';if(links&&links.length)links.forEach(l=>addAppendixRow(l.url,l.desc));updateAppendixEmpty()}
 
 // ═══ CRUD ═══
-function openAddModal(){
-  if(!can('edit_entry')){toast('Không có quyền','⚠️');return}
-  editingId=null;
-  document.getElementById('form-title').textContent='➕ Thêm báo giá mới';
-  ['f-name','f-url','f-group','f-supplier','f-from','f-to','f-note','f-pct','f-by','f-desc'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('f-type').value='sheet';
-  populateIndustrySelect('f-industry');
-  renderAppendixRows([]);
-  openModal('modal-form');
-}
+function openAddModal(){if(!can('edit_entry'))return;editingId=null;document.getElementById('form-title').textContent='➕ Thêm báo giá mới';['f-name','f-url','f-group','f-supplier','f-from','f-to','f-note','f-pct','f-by','f-desc'].forEach(id=>document.getElementById(id).value='');document.getElementById('f-type').value='sheet';populateIndustrySelect('f-industry');renderAppendixRows([]);openModal('modal-form')}
 
-function openEdit(id){
-  if(!can('edit_entry'))return;
-  const e=state.entries.find(x=>x.id===id);if(!e)return;
-  editingId=id;
-  document.getElementById('form-title').textContent='✏️ Chỉnh sửa báo giá';
-  document.getElementById('f-name').value=e.name||'';
-  document.getElementById('f-desc').value=e.description||'';
-  document.getElementById('f-url').value=e.url||'';
-  document.getElementById('f-group').value=e.group||'';
-  document.getElementById('f-supplier').value=e.supplier||'';
-  document.getElementById('f-from').value=e.dateFrom||'';
-  document.getElementById('f-to').value=e.dateTo||'';
-  document.getElementById('f-note').value=e.note||'';
-  document.getElementById('f-pct').value=e.pct!=null?e.pct:'';
-  document.getElementById('f-by').value=e.updatedBy||'';
-  document.getElementById('f-type').value=e.type||'sheet';
-  populateIndustrySelect('f-industry',e.industry);
-  renderAppendixRows(e.appendixLinks||[]);
-  openModal('modal-form');
-}
+function openEdit(id){if(!can('edit_entry'))return;const e=state.entries.find(x=>x.id===id);if(!e)return;editingId=id;document.getElementById('form-title').textContent='✏️ Chỉnh sửa báo giá';document.getElementById('f-name').value=e.name||'';document.getElementById('f-desc').value=e.description||'';document.getElementById('f-url').value=e.url||'';document.getElementById('f-group').value=e.group||'';document.getElementById('f-supplier').value=e.supplier||'';document.getElementById('f-from').value=e.dateFrom||'';document.getElementById('f-to').value=e.dateTo||'';document.getElementById('f-note').value=e.note||'';document.getElementById('f-pct').value=e.pct!=null?e.pct:'';document.getElementById('f-by').value=e.updatedBy||'';document.getElementById('f-type').value=e.type||'sheet';populateIndustrySelect('f-industry',e.industry);renderAppendixRows(e.appendixLinks||[]);openModal('modal-form')}
 
-function saveEntry(){
-  const name=document.getElementById('f-name').value.trim();
-  const url=document.getElementById('f-url').value.trim();
-  if(!name){toast('Nhập tên bảng giá','⚠️');return}
-  if(!url){toast('Nhập URL','⚠️');return}
-  const data={
-    name,url,
-    description:document.getElementById('f-desc').value.trim(),
-    industry:document.getElementById('f-industry').value,
-    group:document.getElementById('f-group').value.trim(),
-    type:document.getElementById('f-type').value,
-    supplier:document.getElementById('f-supplier').value.trim(),
-    dateFrom:document.getElementById('f-from').value,
-    dateTo:document.getElementById('f-to').value,
-    note:document.getElementById('f-note').value.trim(),
-    pct:document.getElementById('f-pct').value!==''?parseFloat(document.getElementById('f-pct').value):null,
-    updatedBy:document.getElementById('f-by').value.trim(),
-    updatedAt:new Date().toISOString().slice(0,10),
-    appendixLinks:getAppendixRows()
-  };
+async function saveEntry(){
+  const name=document.getElementById('f-name').value.trim();const url=document.getElementById('f-url').value.trim();
+  if(!name){toast('Nhập tên','⚠️');return}if(!url){toast('Nhập URL','⚠️');return}
+  const today=new Date().toISOString().slice(0,10);
+  const row={name,url,description:document.getElementById('f-desc').value.trim(),industry:document.getElementById('f-industry').value,'group':document.getElementById('f-group').value.trim(),type:document.getElementById('f-type').value,supplier:document.getElementById('f-supplier').value.trim(),date_from:document.getElementById('f-from').value||null,date_to:document.getElementById('f-to').value||null,note:document.getElementById('f-note').value.trim(),pct:document.getElementById('f-pct').value!==''?parseFloat(document.getElementById('f-pct').value):null,updated_by:document.getElementById('f-by').value.trim(),updated_at:today,appendix_links:getAppendixRows()};
   if(editingId){
-    const idx=state.entries.findIndex(e=>e.id===editingId);
-    const old=state.entries[idx];
-    if((data.note&&data.note!==old.note)||data.pct!=null){
-      if(!old.history)old.history=[];
-      old.history.unshift({date:data.updatedAt,note:data.note||old.note,pct:data.pct,by:data.updatedBy});
-      data.history=old.history;
-    }else{data.history=old.history||[]}
-    state.entries[idx]={...old,...data};
-    toast('Đã cập nhật ✅','✅');
+    const old=state.entries.find(e=>e.id===editingId);let history=old?[...(old.history||[])]:[];
+    if((row.note&&row.note!==(old?.note||''))||row.pct!=null)history.unshift({date:today,note:row.note||old?.note,pct:row.pct,by:row.updated_by});
+    row.history=history;
+    const{error}=await sb.from('pricehub_entries').update(row).eq('id',editingId);
+    if(error){toast('Lỗi: '+error.message,'⚠️');return}toast('Đã cập nhật ✅','✅');
   }else{
-    data.id=uid();
-    data.history=data.note?[{date:data.updatedAt,note:data.note,pct:data.pct,by:data.updatedBy}]:[];
-    state.entries.unshift(data);
-    toast('Đã thêm báo giá mới ✅','✅');
+    row.history=row.note?[{date:today,note:row.note,pct:row.pct,by:row.updated_by}]:[];
+    const{error}=await sb.from('pricehub_entries').insert(row);
+    if(error){toast('Lỗi: '+error.message,'⚠️');return}toast('Đã thêm ✅','✅');
   }
-  save();closeModal('modal-form');renderTable();updateSidebar();refreshNoticeBar();
+  closeModal('modal-form');await loadAllData();
 }
 
-function deleteEntry(id){
-  if(!can('edit_entry')){toast('Không có quyền','⚠️');return}
-  if(!confirm('Xoá báo giá này?'))return;
-  state.entries=state.entries.filter(e=>e.id!==id);
-  save();renderTable();updateSidebar();refreshNoticeBar();toast('Đã xoá','🗑');
-}
+async function deleteEntry(id){if(!can('edit_entry'))return;if(!confirm('Xoá?'))return;await sb.from('pricehub_entries').delete().eq('id',id);toast('Đã xoá','🗑');await loadAllData()}
 
 // ═══ HISTORY ═══
-function openHistory(id){
-  const e=state.entries.find(x=>x.id===id);if(!e)return;
-  document.getElementById('hist-name').textContent=e.name;
-  const list=e.history||[];
-  const el=document.getElementById('hist-list');
-  if(!list.length){el.innerHTML='<div style="color:var(--text-muted);font-size:13px">Chưa có lịch sử</div>';
-  }else{
-    el.innerHTML=list.map(h=>`<div class="history-item">
-      <div class="history-date">📅 ${h.date||'—'}</div>
-      <div class="history-note">${esc(h.note||'Cập nhật')}
-        ${h.pct!=null&&h.pct!==''?`<span class="pct-badge ${h.pct>=0?'pct-up':'pct-down'}">${h.pct>=0?'▲':'▼'} ${Math.abs(h.pct)}%</span>`:''}
-      </div>
-      ${h.by?`<div class="history-by">👤 ${esc(h.by)}</div>`:''}
-    </div>`).join('');
-  }
-  openModal('modal-hist');
+function openHistory(id){const e=state.entries.find(x=>x.id===id);if(!e)return;document.getElementById('hist-name').textContent=e.name;const list=e.history||[];const el=document.getElementById('hist-list');if(!list.length){el.innerHTML='<div style="color:var(--text-muted);font-size:13px">Chưa có lịch sử</div>'}else{el.innerHTML=list.map(h=>'<div class="history-item"><div class="history-date">📅 '+(h.date||'—')+'</div><div class="history-note">'+esc(h.note||'Cập nhật')+(h.pct!=null&&h.pct!==''?'<span class="pct-badge '+(h.pct>=0?'pct-up':'pct-down')+'">'+(h.pct>=0?'▲':'▼')+' '+Math.abs(h.pct)+'%</span>':'')+'</div>'+(h.by?'<div class="history-by">👤 '+esc(h.by)+'</div>':'')+'</div>').join('')}openModal('modal-hist')}
+
+// ═══ NOTICES ═══
+function openNoticeModal(){populateIndustrySelect('n-industry');document.getElementById('n-title').value='';document.getElementById('n-content').value='';document.getElementById('n-url').value='';document.getElementById('n-date').value=new Date().toISOString().slice(0,10);document.getElementById('notice-add-section').style.display=can('edit_notice')?'':'none';renderNoticeList();openModal('modal-notice')}
+
+async function saveNotice(){
+  if(!can('edit_notice'))return;const title=document.getElementById('n-title').value.trim();if(!title){toast('Nhập tiêu đề','⚠️');return}
+  const{error}=await sb.from('pricehub_notices').insert({title,content:document.getElementById('n-content').value.trim(),url:document.getElementById('n-url').value.trim(),date:document.getElementById('n-date').value||null,industry:document.getElementById('n-industry').value});
+  if(error){toast('Lỗi: '+error.message,'⚠️');return}
+  document.getElementById('n-title').value='';document.getElementById('n-content').value='';document.getElementById('n-url').value='';
+  toast('Đã thêm TB ✅','✅');await loadAllData();renderNoticeList();
 }
 
-// ═══ NOTICES (managed like entries) ═══
-function openNoticeModal(){
-  populateIndustrySelect('n-industry');
-  document.getElementById('n-title').value='';
-  document.getElementById('n-content').value='';
-  document.getElementById('n-url').value='';
-  document.getElementById('n-date').value=new Date().toISOString().slice(0,10);
-  // Hide add form for viewers
-  document.getElementById('notice-add-section').style.display=can('edit_notice')?'':'none';
-  renderNoticeList();
-  openModal('modal-notice');
-}
+function renderNoticeList(){const el=document.getElementById('notice-list-modal');if(!state.notices.length){el.innerHTML='<div style="color:var(--text-muted);font-size:12.5px">Chưa có thông báo</div>';return}const cd=can('edit_notice');el.innerHTML=state.notices.map(n=>'<div style="background:var(--gray-light);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:10px;position:relative"><div style="font-weight:600;font-size:13.5px;color:var(--text);margin-bottom:4px">'+esc(n.title||n.content||'—')+'</div>'+(n.content&&n.title?'<div style="font-size:12.5px;color:var(--text-2);margin-bottom:4px">'+esc(n.content)+'</div>':'')+'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span style="font-size:11px;color:var(--text-muted)">📅 '+(n.date||'—')+'</span>'+(n.industry?'<span style="font-size:11px;color:var(--text-muted)">📦 '+esc(n.industry)+'</span>':'')+(n.url?'<a href="'+esc(n.url)+'" target="_blank" style="font-size:11px;color:var(--primary);text-decoration:none">🔗 Mở link</a>':'')+'</div>'+(cd?'<button onclick="deleteNotice(\''+n.id+'\')" style="position:absolute;top:10px;right:10px;background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:14px">✕</button>':'')+'</div>').join('')}
 
-function saveNotice(){
-  if(!can('edit_notice')){toast('Không có quyền','⚠️');return}
-  const title=document.getElementById('n-title').value.trim();
-  if(!title){toast('Nhập tiêu đề thông báo','⚠️');return}
-  state.notices.unshift({
-    id:uid(),
-    title,
-    content:document.getElementById('n-content').value.trim(),
-    url:document.getElementById('n-url').value.trim(),
-    date:document.getElementById('n-date').value,
-    industry:document.getElementById('n-industry').value
-  });
-  save();renderNoticeList();refreshNoticeBar();refreshNoticeCount();
-  document.getElementById('n-title').value='';
-  document.getElementById('n-content').value='';
-  document.getElementById('n-url').value='';
-  toast('Đã thêm thông báo ✅','✅');
-}
+async function deleteNotice(id){if(!can('edit_notice'))return;await sb.from('pricehub_notices').delete().eq('id',id);toast('Đã xoá TB','🗑');await loadAllData();renderNoticeList()}
 
-function renderNoticeList(){
-  const el=document.getElementById('notice-list-modal');
-  if(!state.notices.length){el.innerHTML='<div style="color:var(--text-muted);font-size:12.5px">Chưa có thông báo nào</div>';return}
-  const canDel=can('edit_notice');
-  el.innerHTML=state.notices.map(n=>`
-    <div style="background:var(--gray-light);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:10px;position:relative">
-      <div style="font-weight:600;font-size:13.5px;color:var(--text);margin-bottom:4px">${esc(n.title||n.content||'—')}</div>
-      ${n.content&&n.title?`<div style="font-size:12.5px;color:var(--text-2);margin-bottom:4px">${esc(n.content)}</div>`:''}
-      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-        <span style="font-size:11px;color:var(--text-muted)">📅 ${n.date||'—'}</span>
-        ${n.industry?`<span style="font-size:11px;color:var(--text-muted)">📦 ${esc(n.industry)}</span>`:''}
-        ${n.url?`<a href="${esc(n.url)}" target="_blank" style="font-size:11px;color:var(--primary);text-decoration:none">🔗 Mở link</a>`:''}
-      </div>
-      ${canDel?`<button onclick="deleteNotice('${n.id}')" style="position:absolute;top:10px;right:10px;background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:14px" title="Xoá">✕</button>`:''}
-    </div>`).join('');
-}
+function refreshNoticeBar(){const bar=document.getElementById('notice-bar');const items=document.getElementById('notice-items');if(!state.notices.length){bar.classList.add('hidden');return}bar.classList.remove('hidden');items.innerHTML=state.notices.slice(0,3).map(n=>'<li>'+esc(n.title||n.content)+' <span style="color:var(--text-muted);font-size:11px">('+( n.date||'')+')</span>'+(n.url?' <a href="'+esc(n.url)+'" target="_blank">🔗</a>':'')+'</li>').join('')}
 
-function deleteNotice(id){
-  if(!can('edit_notice'))return;
-  state.notices=state.notices.filter(n=>n.id!==id);
-  save();renderNoticeList();refreshNoticeBar();refreshNoticeCount();
-}
+function refreshNoticeCount(){const cutoff=new Date();cutoff.setMonth(cutoff.getMonth()-2);const recent=state.notices.filter(n=>n.date&&new Date(n.date)>=cutoff);const cnt=recent.length;const badge=document.getElementById('badge-notices');if(badge){badge.textContent=cnt;badge.classList.toggle('badge-notify',cnt>0)}document.getElementById('s-notices').textContent=cnt;const dot=document.getElementById('s-notices-dot');dot.style.display=cnt>0?'':'none';dot.textContent=cnt;const tb=document.getElementById('topbar-notice-badge');tb.style.display=cnt>0?'':'none';tb.textContent=cnt}
 
-function refreshNoticeBar(){
-  const bar=document.getElementById('notice-bar');
-  const items=document.getElementById('notice-items');
-  if(!state.notices.length){bar.classList.add('hidden');return}
-  bar.classList.remove('hidden');
-  items.innerHTML=state.notices.slice(0,3).map(n=>`<li>${esc(n.title||n.content)} <span style="color:var(--text-muted);font-size:11px">(${n.date||''})</span>${n.url?` <a href="${esc(n.url)}" target="_blank">🔗</a>`:''}</li>`).join('');
-}
-
-function refreshNoticeCount(){
-  const cutoff=new Date();cutoff.setMonth(cutoff.getMonth()-2);
-  const recent=state.notices.filter(n=>n.date&&new Date(n.date)>=cutoff);
-  const cnt=recent.length;
-  const badge=document.getElementById('badge-notices');
-  if(badge){badge.textContent=cnt;badge.classList.toggle('badge-notify',cnt>0)}
-  document.getElementById('s-notices').textContent=cnt;
-  const dot=document.getElementById('s-notices-dot');
-  dot.style.display=cnt>0?'':'none';dot.textContent=cnt;
-  const tb=document.getElementById('topbar-notice-badge');
-  tb.style.display=cnt>0?'':'none';tb.textContent=cnt;
-}
-
-// ═══ INDUSTRY (rename) ═══
+// ═══ INDUSTRY ═══
 function openIndustryModal(){renderIndustryList();cancelRenameIndustry();openModal('modal-industry')}
-function addIndustry(){
-  const v=document.getElementById('new-industry').value.trim();if(!v)return;
-  if(state.industries.includes(v)){toast('Đã tồn tại','⚠️');return}
-  state.industries.push(v);save();renderIndustryList();updateSidebar();
-  document.getElementById('new-industry').value='';toast('Đã thêm','✅');
-}
-function removeIndustry(ind){
-  if(state.entries.some(e=>e.industry===ind)){toast('Không thể xoá — có file dùng ngành này','⚠️');return}
-  state.industries=state.industries.filter(x=>x!==ind);save();renderIndustryList();updateSidebar();
-}
-function startRenameIndustry(ind){
-  renamingIndustry=ind;
-  document.getElementById('rename-industry-box').style.display='';
-  document.getElementById('rename-old-label').textContent=ind;
-  document.getElementById('rename-industry-input').value=ind;
-  document.getElementById('rename-industry-input').focus();
-}
-function confirmRenameIndustry(){
-  const n=document.getElementById('rename-industry-input').value.trim();
-  if(!n){toast('Tên trống','⚠️');return}
-  if(n===renamingIndustry){cancelRenameIndustry();return}
-  if(state.industries.includes(n)){toast('Tên đã tồn tại','⚠️');return}
-  const idx=state.industries.indexOf(renamingIndustry);if(idx!==-1)state.industries[idx]=n;
-  state.entries.forEach(e=>{if(e.industry===renamingIndustry)e.industry=n});
-  state.notices.forEach(x=>{if(x.industry===renamingIndustry)x.industry=n});
-  if(currentIndustry===renamingIndustry)currentIndustry=n;
-  save();renamingIndustry=null;renderIndustryList();updateSidebar();renderTable();cancelRenameIndustry();toast('Đã đổi tên','✅');
-}
+async function addIndustry(){const v=document.getElementById('new-industry').value.trim();if(!v)return;if(state.industries.includes(v)){toast('Đã tồn tại','⚠️');return}const{error}=await sb.from('pricehub_industries').insert({name:v});if(error){toast('Lỗi: '+error.message,'⚠️');return}document.getElementById('new-industry').value='';toast('Đã thêm','✅');await loadAllData();renderIndustryList()}
+async function removeIndustry(ind){if(state.entries.some(e=>e.industry===ind)){toast('Không thể xoá — có file dùng','⚠️');return}await sb.from('pricehub_industries').delete().eq('name',ind);await loadAllData();renderIndustryList()}
+function startRenameIndustry(ind){renamingIndustry=ind;document.getElementById('rename-industry-box').style.display='';document.getElementById('rename-old-label').textContent=ind;document.getElementById('rename-industry-input').value=ind;document.getElementById('rename-industry-input').focus()}
+async function confirmRenameIndustry(){const n=document.getElementById('rename-industry-input').value.trim();if(!n){toast('Tên trống','⚠️');return}if(n===renamingIndustry){cancelRenameIndustry();return}if(state.industries.includes(n)){toast('Đã tồn tại','⚠️');return}await sb.from('pricehub_industries').update({name:n}).eq('name',renamingIndustry);await sb.from('pricehub_entries').update({industry:n}).eq('industry',renamingIndustry);await sb.from('pricehub_notices').update({industry:n}).eq('industry',renamingIndustry);if(currentIndustry===renamingIndustry)currentIndustry=n;renamingIndustry=null;cancelRenameIndustry();toast('Đã đổi tên','✅');await loadAllData();renderIndustryList()}
 function cancelRenameIndustry(){renamingIndustry=null;document.getElementById('rename-industry-box').style.display='none'}
-function renderIndustryList(){
-  document.getElementById('industry-list').innerHTML=state.industries.map(ind=>`
-    <div class="industry-tag"><span>📦</span> ${esc(ind)}
-      <span class="edit-ind" onclick="event.stopPropagation();startRenameIndustry('${esc(ind)}')" title="Đổi tên">✏️</span>
-      <span class="remove" onclick="event.stopPropagation();removeIndustry('${esc(ind)}')" title="Xoá">×</span>
-    </div>`).join('');
-}
-function populateIndustrySelect(id,sel=''){
-  const el=document.getElementById(id);if(!el)return;
-  el.innerHTML='<option value="">-- Chọn --</option>'+state.industries.map(ind=>`<option value="${esc(ind)}"${sel===ind?' selected':''}>${esc(ind)}</option>`).join('');
-}
+function renderIndustryList(){document.getElementById('industry-list').innerHTML=state.industries.map(ind=>'<div class="industry-tag"><span>📦</span> '+esc(ind)+' <span class="edit-ind" onclick="event.stopPropagation();startRenameIndustry(\''+esc(ind)+'\')" title="Đổi tên">✏️</span> <span class="remove" onclick="event.stopPropagation();removeIndustry(\''+esc(ind)+'\')" title="Xoá">×</span></div>').join('')}
+function populateIndustrySelect(id,sel){sel=sel||'';const el=document.getElementById(id);if(!el)return;el.innerHTML='<option value="">-- Chọn --</option>'+state.industries.map(ind=>'<option value="'+esc(ind)+'"'+(sel===ind?' selected':'')+'>'+esc(ind)+'</option>').join('')}
 
-// ═══ MODAL ═══
+// ═══ MODAL / TOAST ═══
 function openModal(id){document.getElementById(id).classList.add('open')}
 function closeModal(id){document.getElementById(id).classList.remove('open')}
 document.querySelectorAll('.overlay').forEach(el=>{el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open')})});
-
-// ═══ TOAST ═══
-let _tt;
-function toast(m,icon='ℹ️'){const el=document.getElementById('toast');el.innerHTML=icon+' '+m;el.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>el.classList.remove('show'),2600)}
-
-// ═══ DEMO DATA ═══
-if(!state.entries.length){
-  const today=new Date();
-  const d=o=>{const x=new Date(today);x.setDate(x.getDate()+o);return x.toISOString().slice(0,10)};
-  state.entries=[
-    {id:uid(),name:'Bảng giá thép cuộn Q2-2025',description:'Sheet tổng hợp giá thép cuộn cán nóng/cán nguội EXW và CIF',url:'https://docs.google.com/spreadsheets/d/example1',industry:'Vật liệu xây dựng',group:'Thép tấm & cuộn',type:'sheet',supplier:'Tập đoàn Hòa Phát',dateFrom:d(-30),dateTo:d(60),note:'Tăng 5.2% do chi phí vận tải',pct:5.2,updatedBy:'Nguyễn Văn A',updatedAt:d(-5),history:[{date:d(-5),note:'Tăng 5.2%',pct:5.2,by:'Nguyễn Văn A'}],appendixLinks:[{url:'https://docs.google.com/spreadsheets/d/calc1',desc:'File tính giá thành sản phẩm'},{url:'https://docs.google.com/spreadsheets/d/calc2',desc:'Bảng so sánh giá NVL đầu vào'}]},
-    {id:uid(),name:'Báo giá ống nhựa PPR & HDPE',description:'Bảng giá ống nhựa chịu nhiệt PPR/HDPE đường kính 20-315mm',url:'https://docs.google.com/spreadsheets/d/example2',industry:'Vật liệu xây dựng',group:'Ống nhựa',type:'sheet',supplier:'Công ty Tiền Phong',dateFrom:d(-15),dateTo:d(15),note:'Sắp hết hạn',pct:-2.1,updatedBy:'Trần Thị B',updatedAt:d(-10),history:[{date:d(-10),note:'Giảm 2.1%',pct:-2.1,by:'Trần Thị B'}],appendixLinks:[]},
-    {id:uid(),name:'Giá vật tư điện Schneider 2024',description:'Catalog giá CB, MCCB, ACB dòng Acti9 & Compact',url:'https://docs.google.com/document/d/example3',industry:'Thiết bị điện',group:'CB & APTOMAT',type:'doc',supplier:'Schneider Electric VN',dateFrom:d(-200),dateTo:d(-10),note:'Đã hết hạn — chờ bảng giá 2025',pct:null,updatedBy:'Lê Minh C',updatedAt:d(-200),history:[{date:d(-200),note:'Ban hành bảng giá 2024',pct:null,by:'Lê Minh C'}],appendixLinks:[{url:'https://docs.google.com/spreadsheets/d/calc3',desc:'File so sánh Schneider vs ABB'}]},
-    {id:uid(),name:'Bảng giá cáp điện Cadivi 2025',description:'Cáp đồng PVC, XLPE 1-4 lõi, 1.5-400mm2',url:'https://docs.google.com/spreadsheets/d/example5',industry:'Thiết bị điện',group:'Cáp điện & dây dẫn',type:'sheet',supplier:'Công ty Cadivi',dateFrom:d(-5),dateTo:d(90),note:'Tăng theo giá đồng LME',pct:7.8,updatedBy:'Nguyễn Văn A',updatedAt:d(-5),history:[{date:d(-5),note:'Tăng 7.8%',pct:7.8,by:'Nguyễn Văn A'}],appendixLinks:[]},
-  ];
-  state.notices=[
-    {id:uid(),title:'Thông báo tăng giá thép Q2-2025',content:'Thép cuộn Hòa Phát tăng 5.2% từ tháng 3/2026',url:'https://docs.google.com/document/d/notice1',date:d(-5),industry:'Vật liệu xây dựng'},
-    {id:uid(),title:'Điều chỉnh giá cáp Cadivi',content:'Cadivi tăng 7.8% theo giá đồng LME',url:'https://docs.google.com/document/d/notice2',date:d(-5),industry:'Thiết bị điện'},
-    {id:uid(),title:'Khuyến mãi ống nhựa Tiền Phong Q1',content:'Giảm 2.1% chương trình khuyến mãi',url:'',date:d(-15),industry:'Vật liệu xây dựng'},
-  ];
-  save();
-}
+let _tt;function toast(m,icon){icon=icon||'ℹ️';const el=document.getElementById('toast');el.innerHTML=icon+' '+m;el.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>el.classList.remove('show'),2600)}
 
 // ═══ BOOT ═══
 if(currentUser){showApp()}else{document.getElementById('auth-screen').style.display='';document.getElementById('app-main').classList.remove('show')}
