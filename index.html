@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quản Lý Báo Giá — PriceHub</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --bg: #f5f6fa;
+  --white: #ffffff;
+  --surface2: #f0f2f7;
+  --border: #e3e6ef;
+  --border-strong: #c8cdd9;
+  --text: #1a1d2e;
+  --text-2: #4a5068;
+  --text-muted: #8891a8;
+  --primary: #1d4ed8;
+  --primary-light: #eff4ff;
+  --primary-border: #bfcffe;
+  --green: #059669;
+  --green-light: #ecfdf5;
+  --green-border: #a7f3d0;
+  --yellow: #d97706;
+  --yellow-light: #fffbeb;
+  --yellow-border: #fcd34d;
+  --red: #dc2626;
+  --red-light: #fef2f2;
+  --red-border: #fecaca;
+  --gray-light: #f8f9fc;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,0.1), 0 4px 8px rgba(0,0,0,0.06);
+  --radius: 10px;
+  --radius-sm: 6px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;font-size:14px}
+
+/* ══ AUTH ══ */
+.auth-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#eef2ff 0%,#f5f6fa 50%,#eff6ff 100%);padding:20px}
+.auth-card{background:var(--white);border-radius:16px;box-shadow:var(--shadow-lg);width:420px;max-width:100%;overflow:hidden}
+.auth-header{background:linear-gradient(135deg,#1d4ed8,#3b82f6);padding:32px 28px 24px;text-align:center;color:#fff}
+.auth-header .logo{font-size:22px;font-weight:700;letter-spacing:-0.03em;margin-bottom:4px}
+.auth-header .sub{font-size:12px;opacity:.8}
+.auth-body{padding:28px}
+.auth-tabs{display:flex;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:20px}
+.auth-tab{flex:1;padding:9px;text-align:center;font-size:13px;font-weight:600;cursor:pointer;background:var(--surface2);color:var(--text-muted);border:none;font-family:'DM Sans',sans-serif;transition:all .15s}
+.auth-tab.active{background:var(--primary);color:#fff}
+.auth-msg{padding:10px 14px;border-radius:var(--radius-sm);font-size:12.5px;margin-bottom:16px;display:none}
+.auth-msg.error{display:block;background:var(--red-light);color:var(--red);border:1px solid var(--red-border)}
+.auth-msg.success{display:block;background:var(--green-light);color:var(--green);border:1px solid var(--green-border)}
+.auth-msg.info{display:block;background:var(--primary-light);color:var(--primary);border:1px solid var(--primary-border)}
+.auth-field{margin-bottom:14px}
+.auth-field label{font-size:12px;font-weight:600;color:var(--text-2);display:block;margin-bottom:5px}
+.auth-field input{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:13.5px;color:var(--text);background:var(--bg);outline:none;transition:border-color .15s}
+.auth-field input:focus{border-color:var(--primary);background:var(--white)}
+.auth-actions{margin-top:20px}
+.auth-forgot{display:block;text-align:right;font-size:12px;color:var(--primary);cursor:pointer;margin-top:8px;background:none;border:none;font-family:'DM Sans',sans-serif}
+.auth-forgot:hover{text-decoration:underline}
+.pw-wrap{position:relative}
+.pw-wrap input{padding-right:40px}
+.pw-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:15px;padding:2px}
+.pw-toggle:hover{color:var(--text)}
+
+/* ══ LAYOUT ══ */
+.app{display:none;min-height:100vh}
+.app.show{display:flex}
+.sidebar{width:256px;background:var(--white);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:50;overflow-y:auto}
+.sidebar-brand{padding:20px 20px 16px;border-bottom:1px solid var(--border)}
+.brand-name{font-size:17px;font-weight:700;color:var(--text);letter-spacing:-0.03em;display:flex;align-items:center;gap:8px}
+.brand-name .dot{width:8px;height:8px;background:var(--primary);border-radius:50%;display:inline-block}
+.brand-sub{font-size:11px;color:var(--text-muted);margin-top:2px;letter-spacing:.02em}
+.sidebar-section{padding:16px 12px 8px}
+.sidebar-section-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--text-muted);padding:0 8px;margin-bottom:4px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--radius-sm);cursor:pointer;font-size:13.5px;font-weight:500;color:var(--text-2);transition:all .15s;border:none;background:none;width:100%;text-align:left;margin-bottom:1px;position:relative}
+.nav-item:hover{background:var(--gray-light);color:var(--text)}
+.nav-item.active{background:var(--primary-light);color:var(--primary);font-weight:600}
+.nav-item .badge{margin-left:auto;background:var(--surface2);color:var(--text-muted);font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;font-family:'DM Mono',monospace}
+.nav-item.active .badge{background:var(--primary-border);color:var(--primary)}
+.badge-notify{background:var(--red)!important;color:#fff!important;min-width:18px;text-align:center;animation:pulse-badge 2s infinite}
+@keyframes pulse-badge{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+
+.sidebar-footer{margin-top:auto;padding:16px;border-top:1px solid var(--border)}
+.sidebar-user{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--radius-sm);margin-bottom:8px;background:var(--gray-light);border:1px solid var(--border)}
+.sidebar-user .avatar{width:30px;height:30px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.sidebar-user .info{flex:1;min-width:0}
+.sidebar-user .uname{font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sidebar-user .urole{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.industry-add-btn{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border:1px dashed var(--border-strong);border-radius:var(--radius-sm);background:none;color:var(--text-muted);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .15s;margin-top:6px}
+.industry-add-btn:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
+
+/* ══ MAIN ══ */
+.main{margin-left:256px;flex:1;display:flex;flex-direction:column}
+.topbar{background:var(--white);border-bottom:1px solid var(--border);padding:0 28px;height:60px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:40}
+.topbar-title{font-size:16px;font-weight:700;letter-spacing:-0.02em;flex:1}
+.topbar-title span{color:var(--text-muted);font-weight:400;font-size:14px;margin-left:6px}
+.search-box{display:flex;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 12px;gap:8px;width:240px;transition:border-color .15s}
+.search-box:focus-within{border-color:var(--primary)}
+.search-box input{background:none;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text);width:100%}
+.search-box input::placeholder{color:var(--text-muted)}
+
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:13.5px;font-weight:600;cursor:pointer;transition:all .15s;border:none;white-space:nowrap}
+.btn-primary{background:var(--primary);color:#fff;box-shadow:0 1px 3px rgba(29,78,216,.3)}
+.btn-primary:hover{background:#1e40af}
+.btn-outline{background:var(--white);border:1px solid var(--border);color:var(--text-2)}
+.btn-outline:hover{border-color:var(--border-strong);color:var(--text);background:var(--gray-light)}
+.btn-danger{background:var(--red-light);border:1px solid var(--red-border);color:var(--red)}
+.btn-danger:hover{background:#fee2e2}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-ghost{background:none;border:none;color:var(--text-muted);padding:4px 8px;font-size:13px}
+.btn-ghost:hover{color:var(--red)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.content{padding:24px 28px;flex:1}
+
+/* ══ STATS ══ */
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
+.stat-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;box-shadow:var(--shadow-sm);position:relative;cursor:default}
+.stat-label{font-size:12px;color:var(--text-muted);font-weight:500;margin-bottom:6px}
+.stat-value{font-size:26px;font-weight:700;letter-spacing:-0.03em;font-family:'DM Mono',monospace}
+.stat-sub{font-size:11px;color:var(--text-muted);margin-top:4px}
+.stat-card.primary .stat-value{color:var(--primary)}
+.stat-card.green .stat-value{color:var(--green)}
+.stat-card.orange .stat-value{color:var(--yellow)}
+.stat-notify-dot{position:absolute;top:12px;right:14px;background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;font-family:'DM Mono',monospace;animation:pulse-badge 2s infinite}
+
+/* ══ NOTICE BAR ══ */
+.notice-bar{background:var(--yellow-light);border:1px solid var(--yellow-border);border-radius:var(--radius);padding:12px 16px;margin-bottom:20px;display:flex;align-items:flex-start;gap:10px;font-size:13px}
+.notice-bar .icon{font-size:16px;flex-shrink:0;margin-top:1px}
+.notice-bar .title{font-weight:600;color:var(--yellow);margin-bottom:4px}
+.notice-bar .items{color:var(--text-2)}
+.notice-bar .items li{margin-left:16px;margin-top:2px}
+.notice-bar .items li a{color:var(--primary);text-decoration:none;font-size:11px;margin-left:4px}
+.notice-bar .items li a:hover{text-decoration:underline}
+.notice-bar.hidden{display:none}
+
+/* ══ TABLE ══ */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px}
+.section-title{font-size:15px;font-weight:700;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px}
+.section-title .industry-badge{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:var(--primary-light);color:var(--primary)}
+.table-wrap{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden;margin-bottom:20px}
+table{width:100%;border-collapse:collapse}
+thead{background:var(--gray-light);border-bottom:1px solid var(--border)}
+th{padding:10px 14px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s;cursor:pointer}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--gray-light)}
+td{padding:11px 14px;font-size:13.5px;color:var(--text);vertical-align:middle}
+.td-name{font-weight:600}
+.td-desc{font-size:11.5px;color:var(--text-muted);font-style:italic;margin-top:2px;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge-status{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.badge-status::before{content:'';width:5px;height:5px;border-radius:50%}
+.status-active{background:var(--green-light);color:var(--green);border:1px solid var(--green-border)}
+.status-active::before{background:var(--green)}
+.status-expiring{background:var(--yellow-light);color:var(--yellow);border:1px solid var(--yellow-border)}
+.status-expiring::before{background:var(--yellow)}
+.status-expired{background:var(--red-light);color:var(--red);border:1px solid var(--red-border)}
+.status-expired::before{background:var(--red)}
+.status-nodate{background:var(--surface2);color:var(--text-muted);border:1px solid var(--border)}
+.status-nodate::before{background:var(--text-muted)}
+.td-note{color:var(--text-2);font-size:12.5px;max-width:240px}
+.td-note .truncate{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;display:block}
+.td-actions{white-space:nowrap;display:flex;gap:4px}
+.icon-btn{background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 8px;cursor:pointer;color:var(--text-muted);font-size:13px;transition:all .15s}
+.icon-btn:hover{color:var(--text);border-color:var(--border-strong);background:var(--gray-light)}
+.icon-btn.open:hover{color:var(--primary);border-color:var(--primary-border);background:var(--primary-light)}
+.icon-btn.del:hover{color:var(--red);border-color:var(--red-border);background:var(--red-light)}
+.icon-btn.hist:hover{color:var(--green);border-color:var(--green-border);background:var(--green-light)}
+.type-pill{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.pill-sheet{background:#dcfce7;color:#15803d}
+.pill-doc{background:#dbeafe;color:#1d4ed8}
+.pill-other{background:#f3f4f6;color:#6b7280}
+.pct-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;font-family:'DM Mono',monospace;margin-left:8px}
+.pct-up{background:#dcfce7;color:#15803d}
+.pct-down{background:var(--red-light);color:var(--red)}
+
+/* ══ MODAL ══ */
+.overlay{position:fixed;inset:0;background:rgba(15,20,40,.45);backdrop-filter:blur(3px);z-index:200;opacity:0;pointer-events:none;transition:opacity .2s;display:flex;align-items:center;justify-content:center;padding:20px}
+.overlay.open{opacity:1;pointer-events:all}
+.modal{background:var(--white);border-radius:14px;box-shadow:var(--shadow-lg);width:640px;max-width:100%;max-height:90vh;overflow-y:auto;transform:translateY(16px) scale(.98);transition:transform .2s}
+.overlay.open .modal{transform:translateY(0) scale(1)}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px 0;margin-bottom:20px}
+.modal-title{font-size:17px;font-weight:700;letter-spacing:-0.02em}
+.modal-close{background:none;border:none;font-size:20px;color:var(--text-muted);cursor:pointer;padding:4px 8px;border-radius:6px;transition:all .15s}
+.modal-close:hover{background:var(--gray-light);color:var(--text)}
+.modal-body{padding:0 24px 24px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-grid .span2{grid-column:span 2}
+.form-field{display:flex;flex-direction:column;gap:5px}
+.form-label{font-size:12px;font-weight:600;color:var(--text-2)}
+.form-label span{color:var(--red);margin-left:2px}
+.form-input,.form-select,.form-textarea{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:'DM Sans',sans-serif;font-size:13.5px;padding:8px 12px;outline:none;transition:border-color .15s,box-shadow .15s;width:100%}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(29,78,216,.1);background:var(--white)}
+.form-textarea{resize:vertical;min-height:72px;line-height:1.5}
+.modal-footer{border-top:1px solid var(--border);padding:16px 24px;display:flex;gap:10px;justify-content:flex-end}
+.divider{height:1px;background:var(--border);margin:16px 0}
+
+/* ══ APPENDIX LINKS ══ */
+.appendix-section{margin-top:8px;padding:14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--gray-light)}
+.appendix-title{font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.appendix-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.appendix-row input{flex:1;padding:7px 10px;font-size:12.5px}
+.appendix-row .btn-ghost{flex-shrink:0}
+
+/* ══ HISTORY ══ */
+.history-list{display:flex;flex-direction:column;gap:10px}
+.history-item{background:var(--gray-light);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;position:relative}
+.history-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--primary);border-radius:3px 0 0 3px}
+.history-date{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);margin-bottom:4px}
+.history-note{font-size:13px;color:var(--text);font-weight:500}
+.history-by{font-size:11px;color:var(--text-muted);margin-top:4px}
+
+/* ══ INDUSTRY ══ */
+.industry-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.industry-tag{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:6px;font-size:12.5px;font-weight:600;cursor:default;background:var(--gray-light);color:var(--text-2);border:1px solid var(--border)}
+.industry-tag .edit-ind,.industry-tag .remove{cursor:pointer;font-size:12px;color:var(--text-muted);line-height:1}
+.industry-tag .edit-ind:hover{color:var(--primary)}
+.industry-tag .remove:hover{color:var(--red)}
+
+/* ══ ADMIN TABLE ══ */
+.admin-users-table{width:100%;border-collapse:collapse;font-size:13px}
+.admin-users-table th{background:var(--gray-light);padding:8px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);border-bottom:1px solid var(--border)}
+.admin-users-table td{padding:8px 12px;border-bottom:1px solid var(--border);font-size:12.5px}
+.admin-users-table tr:last-child td{border-bottom:none}
+.badge-pending{background:var(--yellow-light);color:var(--yellow);border:1px solid var(--yellow-border);padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.badge-approved{background:var(--green-light);color:var(--green);border:1px solid var(--green-border);padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.badge-role{padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.role-admin{background:#ede9fe;color:#7c3aed;border:1px solid #c4b5fd}
+.role-editor{background:#dbeafe;color:#1d4ed8;border:1px solid var(--primary-border)}
+.role-viewer{background:var(--surface2);color:var(--text-muted);border:1px solid var(--border)}
+
+/* ══ TOAST ══ */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--text);color:var(--white);font-size:13px;font-weight:500;padding:11px 18px;border-radius:8px;z-index:999;box-shadow:var(--shadow-lg);transform:translateY(60px);opacity:0;transition:all .25s cubic-bezier(.34,1.56,.64,1);display:flex;align-items:center;gap:8px;max-width:360px}
+.toast.show{transform:translateY(0);opacity:1}
+
+@media(max-width:900px){
+  .sidebar{transform:translateX(-100%)}
+  .main{margin-left:0}
+  .stats-row{grid-template-columns:1fr}
+  .form-grid{grid-template-columns:1fr}
+  .form-grid .span2{grid-column:span 1}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════ AUTH ═══════ -->
+<div class="auth-screen" id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="logo">● PriceHub</div>
+      <div class="sub">Hệ thống Quản lý Báo giá — R&D NSCA</div>
+    </div>
+    <div class="auth-body">
+      <div class="auth-tabs" id="auth-tabs">
+        <button class="auth-tab active" onclick="switchAuthTab('login')">Đăng nhập</button>
+        <button class="auth-tab" onclick="switchAuthTab('register')">Đăng ký</button>
+      </div>
+      <div id="auth-message" class="auth-msg"></div>
+
+      <!-- Login -->
+      <div id="auth-login-form">
+        <div class="auth-field">
+          <label>Email / Tên đăng nhập</label>
+          <input type="text" id="login-email" placeholder="VD: rd@nsca">
+        </div>
+        <div class="auth-field">
+          <label>Mật khẩu</label>
+          <div class="pw-wrap">
+            <input type="password" id="login-pass" placeholder="Nhập mật khẩu">
+            <button class="pw-toggle" type="button" onclick="togglePw('login-pass',this)">👁</button>
+          </div>
+        </div>
+        <div class="auth-actions">
+          <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doLogin()">Đăng nhập</button>
+        </div>
+        <button class="auth-forgot" onclick="doForgotPassword()">Quên mật khẩu?</button>
+      </div>
+
+      <!-- Register -->
+      <div id="auth-register-form" style="display:none">
+        <div class="auth-field">
+          <label>Họ tên</label>
+          <input type="text" id="reg-name" placeholder="Nguyễn Văn A">
+        </div>
+        <div class="auth-field">
+          <label>Email</label>
+          <input type="email" id="reg-email" placeholder="email@domain.com">
+        </div>
+        <div class="auth-field">
+          <label>Mật khẩu</label>
+          <div class="pw-wrap">
+            <input type="password" id="reg-pass" placeholder="Tối thiểu 6 ký tự">
+            <button class="pw-toggle" type="button" onclick="togglePw('reg-pass',this)">👁</button>
+          </div>
+        </div>
+        <div class="auth-field">
+          <label>Xác nhận mật khẩu</label>
+          <div class="pw-wrap">
+            <input type="password" id="reg-pass2" placeholder="Nhập lại mật khẩu">
+            <button class="pw-toggle" type="button" onclick="togglePw('reg-pass2',this)">👁</button>
+          </div>
+        </div>
+        <div class="auth-actions">
+          <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doRegister()">Đăng ký tài khoản</button>
+        </div>
+        <div style="font-size:11.5px;color:var(--text-muted);margin-top:12px;text-align:center">
+          Tài khoản mới cần được Admin phê duyệt trước khi sử dụng
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ APP ═══════ -->
+<div class="app" id="app-main">
+
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-name"><span class="dot"></span> PriceHub</div>
+    <div class="brand-sub">Quản lý file báo giá — R&D</div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Tổng quan</div>
+    <button class="nav-item active" onclick="setView('all')" id="nav-all">
+      <span>📋</span> Tất cả báo giá
+      <span class="badge" id="badge-all">0</span>
+    </button>
+    <button class="nav-item" onclick="openNoticeModal()" id="nav-notices">
+      <span>🔔</span> Thông báo
+      <span class="badge" id="badge-notices">0</span>
+    </button>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Ngành hàng</div>
+    <div id="industry-nav"></div>
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="sidebar-user">
+      <div class="avatar" id="user-avatar">?</div>
+      <div class="info">
+        <div class="uname" id="user-display-name">—</div>
+        <div class="urole" id="user-display-role">—</div>
+      </div>
+      <button onclick="doLogout()" title="Đăng xuất" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:16px">⏻</button>
+    </div>
+    <button class="industry-add-btn" onclick="openIndustryModal()" id="btn-industry-mgmt">
+      <span>＋</span> Quản lý ngành hàng
+    </button>
+    <button class="industry-add-btn" onclick="openAdminPanel()" id="btn-admin" style="display:none;border-color:var(--red-border);color:var(--red)">
+      <span>⚙️</span> Quản lý người dùng
+    </button>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="topbar-title">Tất cả báo giá <span id="topbar-sub"></span></div>
+    <div class="search-box">
+      <span style="color:var(--text-muted);font-size:14px">🔍</span>
+      <input type="text" placeholder="Tìm tên, nhà cung cấp..." id="search-inp" oninput="renderTable()">
+    </div>
+    <button class="btn btn-outline btn-sm" onclick="openNoticeModal()" style="position:relative" id="topbar-notice-btn">
+      🔔 Thông báo
+      <span id="topbar-notice-badge" style="display:none;position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:10px;font-family:'DM Mono',monospace"></span>
+    </button>
+    <button class="btn btn-primary btn-sm" onclick="openAddModal()" id="btn-add-entry">＋ Thêm báo giá</button>
+  </div>
+
+  <div class="content">
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card primary">
+        <div class="stat-label">Tổng file báo giá</div>
+        <div class="stat-value" id="s-total">0</div>
+        <div class="stat-sub">Tất cả ngành hàng</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Ngành hàng</div>
+        <div class="stat-value" id="s-industries">0</div>
+        <div class="stat-sub">Đang quản lý</div>
+      </div>
+      <div class="stat-card orange" style="cursor:pointer" onclick="openNoticeModal()">
+        <div class="stat-label">Thông báo</div>
+        <div class="stat-value" id="s-notices">0</div>
+        <div class="stat-sub">Trong 2 tháng qua</div>
+        <span class="stat-notify-dot" id="s-notices-dot" style="display:none">0</span>
+      </div>
+    </div>
+
+    <!-- Notice bar -->
+    <div id="notice-bar" class="notice-bar hidden">
+      <div class="icon">⚠️</div>
+      <div>
+        <div class="title">Thông báo mới nhất</div>
+        <ul class="items" id="notice-items"></ul>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="section-header">
+      <div class="section-title">
+        <span id="table-title">Danh sách báo giá</span>
+        <span class="industry-badge" id="table-badge" style="display:none"></span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select class="form-select" style="width:auto;padding:6px 10px;font-size:12.5px" onchange="filterGroup(this.value)" id="group-filter">
+          <option value="">Tất cả nhóm SP</option>
+        </select>
+        <select class="form-select" style="width:auto;padding:6px 10px;font-size:12.5px" onchange="filterType(this.value)" id="type-filter">
+          <option value="">Tất cả loại</option>
+          <option value="sheet">Google Sheet</option>
+          <option value="doc">Google Doc</option>
+          <option value="other">Loại khác</option>
+        </select>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:32px">#</th>
+          <th>Tên file / Bảng giá</th>
+          <th>Nhóm SP</th>
+          <th>Loại</th>
+          <th>Hiệu lực</th>
+          <th>Trạng thái</th>
+          <th>Ghi chú</th>
+          <th style="width:120px">Thao tác</th>
+        </tr></thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════ MODAL: ADD/EDIT ═══════ -->
+<div class="overlay" id="modal-form">
+  <div class="modal" style="width:680px">
+    <div class="modal-header">
+      <div class="modal-title" id="form-title">Thêm báo giá mới</div>
+      <button class="modal-close" onclick="closeModal('modal-form')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-field span2">
+          <div class="form-label">Tên bảng giá / File <span>*</span></div>
+          <input class="form-input" id="f-name" placeholder="VD: Bảng giá thép cuộn Q2-2025">
+        </div>
+        <div class="form-field span2">
+          <div class="form-label">Mô tả đặc tính</div>
+          <textarea class="form-textarea" id="f-desc" rows="2" style="min-height:48px" placeholder="Mô tả ngắn gọn nội dung, đặc tính của sheet này..."></textarea>
+        </div>
+        <div class="form-field span2">
+          <div class="form-label">URL chính (Google Sheet / Doc / Drive) <span>*</span></div>
+          <input class="form-input" id="f-url" type="url" placeholder="https://docs.google.com/...">
+        </div>
+        <div class="form-field">
+          <div class="form-label">Ngành hàng <span>*</span></div>
+          <select class="form-select" id="f-industry"><option value="">-- Chọn --</option></select>
+        </div>
+        <div class="form-field">
+          <div class="form-label">Nhóm sản phẩm</div>
+          <input class="form-input" id="f-group" placeholder="VD: Thép tấm, Ống nhựa...">
+        </div>
+        <div class="form-field">
+          <div class="form-label">Loại file</div>
+          <select class="form-select" id="f-type">
+            <option value="sheet">📊 Google Sheet</option>
+            <option value="doc">📄 Google Doc</option>
+            <option value="other">📎 Loại khác</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <div class="form-label">Nhà cung cấp</div>
+          <input class="form-input" id="f-supplier" placeholder="VD: Công ty Hoa Sen">
+        </div>
+        <div class="form-field">
+          <div class="form-label">Ngày hiệu lực (từ)</div>
+          <input class="form-input" id="f-from" type="date">
+        </div>
+        <div class="form-field">
+          <div class="form-label">Ngày hết hạn (đến)</div>
+          <input class="form-input" id="f-to" type="date">
+        </div>
+        <div class="form-field span2">
+          <div class="form-label">Ghi chú / Nội dung thay đổi</div>
+          <textarea class="form-textarea" id="f-note" placeholder="Mô tả nội dung cập nhật, lý do thay đổi giá..."></textarea>
+        </div>
+        <div class="form-field">
+          <div class="form-label">% Thay đổi so với kỳ trước</div>
+          <input class="form-input" id="f-pct" type="number" step="0.1" placeholder="VD: +5.2 hoặc -3.0">
+        </div>
+        <div class="form-field">
+          <div class="form-label">Người cập nhật</div>
+          <input class="form-input" id="f-by" placeholder="Tên người cập nhật">
+        </div>
+      </div>
+
+      <!-- Appendix links -->
+      <div class="appendix-section span2" style="margin-top:16px">
+        <div class="appendix-title">
+          📎 Phụ lục đường dẫn (file tính cấu hình giá)
+          <button class="btn btn-outline btn-sm" onclick="addAppendixRow()">＋ Thêm link</button>
+        </div>
+        <div id="appendix-rows"></div>
+        <div id="appendix-empty" style="font-size:12px;color:var(--text-muted);display:none">Chưa có phụ lục nào. Nhấn "＋ Thêm link" để bổ sung.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-form')">Huỷ</button>
+      <button class="btn btn-primary" onclick="saveEntry()">💾 Lưu báo giá</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ MODAL: HISTORY ═══════ -->
+<div class="overlay" id="modal-hist">
+  <div class="modal" style="width:520px">
+    <div class="modal-header">
+      <div class="modal-title">📜 Lịch sử cập nhật giá</div>
+      <button class="modal-close" onclick="closeModal('modal-hist')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="hist-name" style="font-weight:600;font-size:15px;margin-bottom:16px;color:var(--text-2)"></div>
+      <div class="history-list" id="hist-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ MODAL: NOTICE (managed like entries) ═══════ -->
+<div class="overlay" id="modal-notice">
+  <div class="modal" style="width:640px">
+    <div class="modal-header">
+      <div class="modal-title">🔔 Quản lý thông báo</div>
+      <button class="modal-close" onclick="closeModal('modal-notice')">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- Add notice form (admin/editor only) -->
+      <div id="notice-add-section">
+        <div style="background:var(--yellow-light);border:1px solid var(--yellow-border);border-radius:var(--radius);padding:16px;margin-bottom:20px">
+          <div style="font-size:13px;font-weight:700;color:var(--yellow);margin-bottom:10px">➕ Thêm thông báo mới</div>
+          <div class="form-grid">
+            <div class="form-field span2">
+              <div class="form-label">Tiêu đề thông báo <span>*</span></div>
+              <input class="form-input" id="n-title" placeholder="VD: Thông báo tăng giá thép Q2-2025">
+            </div>
+            <div class="form-field span2">
+              <div class="form-label">Nội dung / Mô tả</div>
+              <textarea class="form-textarea" id="n-content" style="min-height:48px" placeholder="Chi tiết nội dung thông báo..."></textarea>
+            </div>
+            <div class="form-field">
+              <div class="form-label">URL đính kèm</div>
+              <input class="form-input" id="n-url" type="url" placeholder="https://...">
+            </div>
+            <div class="form-field">
+              <div class="form-label">Ngày thông báo</div>
+              <input class="form-input" id="n-date" type="date">
+            </div>
+            <div class="form-field">
+              <div class="form-label">Ngành hàng liên quan</div>
+              <select class="form-select" id="n-industry"><option value="">-- Tất cả --</option></select>
+            </div>
+            <div class="form-field" style="justify-content:flex-end">
+              <button class="btn btn-primary" onclick="saveNotice()" style="align-self:flex-end">＋ Thêm</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Notice list -->
+      <div class="form-label" style="margin-bottom:10px;font-size:13px">Danh sách thông báo:</div>
+      <div id="notice-list-modal"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-notice')">Đóng</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ MODAL: INDUSTRY ═══════ -->
+<div class="overlay" id="modal-industry">
+  <div class="modal" style="width:480px">
+    <div class="modal-header">
+      <div class="modal-title">🏭 Quản lý ngành hàng</div>
+      <button class="modal-close" onclick="closeModal('modal-industry')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-field" style="margin-bottom:12px">
+        <div class="form-label">Thêm ngành hàng mới</div>
+        <div style="display:flex;gap:8px">
+          <input class="form-input" id="new-industry" placeholder="VD: Vật liệu xây dựng">
+          <button class="btn btn-primary" onclick="addIndustry()">Thêm</button>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="form-label" style="margin-bottom:8px">Ngành hàng hiện có (nhấn ✏️ để đổi tên):</div>
+      <div class="industry-tags" id="industry-list"></div>
+      <div id="rename-industry-box" style="display:none;margin-top:16px;padding:14px;background:var(--primary-light);border:1px solid var(--primary-border);border-radius:var(--radius-sm)">
+        <div class="form-label" style="margin-bottom:6px;color:var(--primary)">Đổi tên: <strong id="rename-old-label"></strong></div>
+        <div style="display:flex;gap:8px">
+          <input class="form-input" id="rename-industry-input" placeholder="Tên mới">
+          <button class="btn btn-primary btn-sm" onclick="confirmRenameIndustry()">Lưu</button>
+          <button class="btn btn-outline btn-sm" onclick="cancelRenameIndustry()">Huỷ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ MODAL: ADMIN ═══════ -->
+<div class="overlay" id="modal-admin">
+  <div class="modal" style="width:700px">
+    <div class="modal-header">
+      <div class="modal-title">⚙️ Quản lý người dùng</div>
+      <button class="modal-close" onclick="closeModal('modal-admin')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="admin-pending" style="margin-bottom:20px">
+        <div class="form-label" style="margin-bottom:10px;font-size:13px;color:var(--yellow)">⏳ Chờ phê duyệt</div>
+        <div id="admin-pending-list"></div>
+      </div>
+      <div class="divider"></div>
+      <div class="form-label" style="margin-bottom:10px;font-size:13px">Tất cả người dùng</div>
+      <div id="admin-all-users"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══ SUPABASE ═══
+const SUPABASE_URL='https://gqisjvyjdbtxzbvylmwh.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxaXNqdnlqZGJ0eHpidnlsbXdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY5MzQ0MDAsImV4cCI6MjA1MjUxMDQwMH0.Wr5uZh3hLVOQIPymHrOV-w_NqxfcnBs';
+let sb=null;
+try{if(typeof supabase!=='undefined'&&supabase.createClient){sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY)}}catch(e){}
+
+// ═══ AUTH ═══
+const ADMIN_EMAIL='rd@nsca',ADMIN_PASS='Nokey@92',ADMIN_MAIL='rd@nsca.vn';
+const ROLES={admin:'Admin',editor:'Cấp 1 (Biên tập)',viewer:'Người dùng'};
+
+function getUsers(){return JSON.parse(localStorage.getItem('pricehub_users')||'[]')}
+function saveUsers(u){localStorage.setItem('pricehub_users',JSON.stringify(u))}
+
+(function initAdmin(){
+  let u=getUsers();
+  if(!u.find(x=>x.email===ADMIN_EMAIL)){
+    u.push({email:ADMIN_EMAIL,password:ADMIN_PASS,name:'Admin R&D',role:'admin',status:'approved',createdAt:new Date().toISOString()});
+    saveUsers(u);
+  }
+})();
+
+let currentUser=JSON.parse(sessionStorage.getItem('pricehub_session')||'null');
+
+function can(action){
+  if(!currentUser)return false;
+  const r=currentUser.role;
+  if(r==='admin')return true;
+  if(action==='edit_notice')return r==='editor';
+  if(action==='edit_entry')return r==='editor';
+  if(action==='view')return true;
+  return false;
+}
+
+function togglePw(inputId,btn){
+  const inp=document.getElementById(inputId);
+  if(inp.type==='password'){inp.type='text';btn.textContent='🙈'}
+  else{inp.type='password';btn.textContent='👁'}
+}
+
+function switchAuthTab(tab){
+  document.querySelectorAll('.auth-tab').forEach((el,i)=>{
+    el.classList.toggle('active',(tab==='login'&&i===0)||(tab==='register'&&i===1))
+  });
+  document.getElementById('auth-login-form').style.display=tab==='login'?'':'none';
+  document.getElementById('auth-register-form').style.display=tab==='register'?'':'none';
+  clearAuthMsg();
+}
+
+function showAuthMsg(m,t){const el=document.getElementById('auth-message');el.textContent=m;el.className='auth-msg '+t}
+function clearAuthMsg(){const el=document.getElementById('auth-message');el.className='auth-msg';el.textContent=''}
+
+function doLogin(){
+  const email=document.getElementById('login-email').value.trim();
+  const pass=document.getElementById('login-pass').value;
+  if(!email||!pass){showAuthMsg('Vui lòng nhập đầy đủ thông tin','error');return}
+  const users=getUsers();
+  const user=users.find(u=>u.email===email);
+  if(!user||user.password!==pass){showAuthMsg('Sai tên đăng nhập hoặc mật khẩu','error');return}
+  if(user.status==='pending'){showAuthMsg('Tài khoản đang chờ Admin phê duyệt. Liên hệ '+ADMIN_MAIL,'info');return}
+  if(user.status==='rejected'){showAuthMsg('Tài khoản bị từ chối. Liên hệ Admin.','error');return}
+  currentUser={email:user.email,name:user.name,role:user.role};
+  sessionStorage.setItem('pricehub_session',JSON.stringify(currentUser));
+  showApp();
+}
+
+function doRegister(){
+  const name=document.getElementById('reg-name').value.trim();
+  const email=document.getElementById('reg-email').value.trim();
+  const pass=document.getElementById('reg-pass').value;
+  const pass2=document.getElementById('reg-pass2').value;
+  if(!name||!email||!pass){showAuthMsg('Vui lòng nhập đầy đủ thông tin','error');return}
+  if(pass.length<6){showAuthMsg('Mật khẩu cần tối thiểu 6 ký tự','error');return}
+  if(pass!==pass2){showAuthMsg('Xác nhận mật khẩu không khớp','error');return}
+  const users=getUsers();
+  if(users.find(u=>u.email===email)){showAuthMsg('Email này đã được đăng ký','error');return}
+  users.push({email,password:pass,name,role:'viewer',status:'pending',createdAt:new Date().toISOString()});
+  saveUsers(users);
+  showAuthMsg('Đăng ký thành công! Chờ Admin phê duyệt. Liên hệ '+ADMIN_MAIL,'success');
+  ['reg-name','reg-email','reg-pass','reg-pass2'].forEach(id=>document.getElementById(id).value='');
+}
+
+function doForgotPassword(){
+  const email=document.getElementById('login-email').value.trim();
+  if(!email){showAuthMsg('Nhập email/tên đăng nhập trước','error');return}
+  const users=getUsers();
+  if(!users.find(u=>u.email===email)){showAuthMsg('Không tìm thấy tài khoản','error');return}
+  showAuthMsg('Yêu cầu đặt lại mật khẩu đã gửi đến Admin ('+ADMIN_MAIL+'). Vui lòng liên hệ.','info');
+}
+
+function doLogout(){
+  currentUser=null;sessionStorage.removeItem('pricehub_session');
+  document.getElementById('app-main').classList.remove('show');
+  document.getElementById('auth-screen').style.display='';
+  clearAuthMsg();
+}
+
+function showApp(){
+  document.getElementById('auth-screen').style.display='none';
+  document.getElementById('app-main').classList.add('show');
+  document.getElementById('user-display-name').textContent=currentUser.name||currentUser.email;
+  document.getElementById('user-display-role').textContent=ROLES[currentUser.role]||currentUser.role;
+  document.getElementById('user-avatar').textContent=(currentUser.name||currentUser.email).charAt(0).toUpperCase();
+  document.getElementById('btn-admin').style.display=currentUser.role==='admin'?'':'none';
+  // Hide add button for viewers
+  document.getElementById('btn-add-entry').style.display=can('edit_entry')?'':'none';
+  // Hide industry mgmt for non-admin
+  document.getElementById('btn-industry-mgmt').style.display=currentUser.role==='admin'?'':'none';
+  updateSidebar();renderTable();refreshNoticeBar();refreshNoticeCount();
+}
+
+// ═══ ADMIN PANEL ═══
+function openAdminPanel(){
+  if(!currentUser||currentUser.role!=='admin'){toast('Chỉ Admin','⚠️');return}
+  const users=getUsers();
+  const pending=users.filter(u=>u.status==='pending');
+  const all=users.filter(u=>u.email!==ADMIN_EMAIL);
+  const pendingEl=document.getElementById('admin-pending-list');
+  if(!pending.length){
+    pendingEl.innerHTML='<div style="color:var(--text-muted);font-size:12.5px">Không có tài khoản chờ duyệt</div>';
+  }else{
+    pendingEl.innerHTML=`<table class="admin-users-table"><thead><tr><th>Tên</th><th>Email</th><th>Ngày ĐK</th><th>Thao tác</th></tr></thead><tbody>`+
+      pending.map(u=>`<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td style="font-family:'DM Mono',monospace;font-size:11px">${(u.createdAt||'').slice(0,10)}</td><td>
+        <button class="btn btn-primary btn-sm" onclick="approveUser('${esc(u.email)}')">✅ Duyệt</button>
+        <button class="btn btn-danger btn-sm" onclick="rejectUser('${esc(u.email)}')" style="margin-left:4px">✕</button>
+      </td></tr>`).join('')+`</tbody></table>`;
+  }
+  const allEl=document.getElementById('admin-all-users');
+  if(!all.length){
+    allEl.innerHTML='<div style="color:var(--text-muted);font-size:12.5px">Chưa có người dùng</div>';
+  }else{
+    allEl.innerHTML=`<table class="admin-users-table"><thead><tr><th>Tên</th><th>Email</th><th>Vai trò</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>`+
+      all.map(u=>{
+        const roleBadge=u.role==='admin'?'role-admin':u.role==='editor'?'role-editor':'role-viewer';
+        const statusBadge=u.status==='approved'?'badge-approved':u.status==='pending'?'badge-pending':'badge-status status-expired';
+        const statusText=u.status==='approved'?'Đã duyệt':u.status==='pending'?'Chờ duyệt':'Từ chối';
+        return `<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td>
+          <td><span class="badge-role ${roleBadge}">${ROLES[u.role]||u.role}</span></td>
+          <td><span class="${statusBadge}">${statusText}</span></td>
+          <td style="white-space:nowrap">
+            <select onchange="changeUserRole('${esc(u.email)}',this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-family:'DM Sans',sans-serif">
+              <option value="viewer"${u.role==='viewer'?' selected':''}>Người dùng</option>
+              <option value="editor"${u.role==='editor'?' selected':''}>Cấp 1</option>
+              <option value="admin"${u.role==='admin'?' selected':''}>Admin</option>
+            </select>
+            ${u.status!=='approved'?`<button class="btn btn-primary btn-sm" onclick="approveUser('${esc(u.email)}')" style="margin-left:4px">Duyệt</button>`:''}
+            <button class="btn btn-outline btn-sm" onclick="resetUserPassword('${esc(u.email)}')" style="margin-left:4px">🔑</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteUser('${esc(u.email)}')" style="margin-left:4px">🗑</button>
+          </td></tr>`;
+      }).join('')+`</tbody></table>`;
+  }
+  openModal('modal-admin');
+}
+
+function approveUser(e){const u=getUsers();const x=u.find(a=>a.email===e);if(x){x.status='approved';saveUsers(u);toast('Đã phê duyệt '+x.name,'✅');openAdminPanel()}}
+function rejectUser(e){const u=getUsers();const x=u.find(a=>a.email===e);if(x){x.status='rejected';saveUsers(u);toast('Đã từ chối','🚫');openAdminPanel()}}
+function changeUserRole(e,role){const u=getUsers();const x=u.find(a=>a.email===e);if(x){x.role=role;saveUsers(u);toast('Đã đổi vai trò','✅');openAdminPanel()}}
+function resetUserPassword(e){const p=prompt('Mật khẩu mới cho '+e+':');if(!p||p.length<6){toast('MK phải >= 6 ký tự','⚠️');return}const u=getUsers();const x=u.find(a=>a.email===e);if(x){x.password=p;saveUsers(u);toast('Đã reset MK','✅')}}
+function deleteUser(e){if(!confirm('Xoá tài khoản '+e+'?'))return;saveUsers(getUsers().filter(u=>u.email!==e));toast('Đã xoá','🗑');openAdminPanel()}
+
+// ═══ STATE ═══
+let state=JSON.parse(localStorage.getItem('pricehub')||'null')||{entries:[],industries:['Vật liệu xây dựng','Thiết bị điện','Cơ khí','Hàng hóa TM'],notices:[]};
+let currentView='all',currentIndustry='',currentGroup='',currentType='',editingId=null,renamingIndustry=null;
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const save=()=>localStorage.setItem('pricehub',JSON.stringify(state));
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
+// ═══ STATUS ═══
+function getStatus(e){
+  if(!e.dateTo&&!e.dateFrom)return 'nodate';
+  const t=new Date();t.setHours(0,0,0,0);
+  if(e.dateTo){const to=new Date(e.dateTo);if(to<t)return'expired';if((to-t)/864e5<=30)return'expiring'}
+  if(e.dateFrom){if(new Date(e.dateFrom)>t)return'expiring'}
+  return'active';
+}
+function statusLabel(s){return{active:'Hiệu lực',expiring:'Sắp hết hạn',expired:'Hết hạn',nodate:'Không hạn'}[s]||s}
+function statusClass(s){return{active:'status-active',expiring:'status-expiring',expired:'status-expired',nodate:'status-nodate'}[s]||''}
+function typeLabel(t){if(t==='sheet')return'<span class="type-pill pill-sheet">Sheet</span>';if(t==='doc')return'<span class="type-pill pill-doc">Doc</span>';return'<span class="type-pill pill-other">Khác</span>'}
+
+// ═══ SIDEBAR ═══
+function updateSidebar(){
+  let cnt=state.entries.length;
+  document.getElementById('badge-all').textContent=cnt;
+  const nav=document.getElementById('industry-nav');
+  nav.innerHTML=state.industries.map(ind=>{
+    const c=state.entries.filter(e=>e.industry===ind).length;
+    const active=currentIndustry===ind?' active':'';
+    return`<button class="nav-item${active}" onclick="setViewIndustry('${esc(ind)}')"><span>📦</span> ${esc(ind)}<span class="badge">${c}</span></button>`;
+  }).join('');
+  document.getElementById('s-total').textContent=cnt;
+  document.getElementById('s-industries').textContent=state.industries.length;
+}
+
+function setView(v){
+  currentView=v;currentIndustry='';
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
+  const el=document.getElementById('nav-'+v);if(el)el.classList.add('active');
+  document.getElementById('topbar-title').innerHTML='Tất cả báo giá <span id="topbar-sub"></span>';
+  document.getElementById('table-title').textContent='Danh sách báo giá';
+  document.getElementById('table-badge').style.display='none';
+  renderTable();
+}
+
+function setViewIndustry(ind){
+  currentView='industry';currentIndustry=ind;
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
+  document.getElementById('topbar-title').innerHTML=`${esc(ind)} <span id="topbar-sub"></span>`;
+  document.getElementById('table-title').textContent=ind;
+  const b=document.getElementById('table-badge');b.textContent='Ngành hàng';b.style.display='';
+  renderTable();updateSidebar();
+}
+
+function filterGroup(v){currentGroup=v;renderTable()}
+function filterType(v){currentType=v;renderTable()}
+
+// ═══ TABLE ═══
+function renderTable(){
+  const q=document.getElementById('search-inp').value.toLowerCase();
+  let data=state.entries.filter(e=>{
+    if(currentView==='industry'&&e.industry!==currentIndustry)return false;
+    if(currentGroup&&e.group!==currentGroup)return false;
+    if(currentType&&e.type!==currentType)return false;
+    if(q&&!e.name.toLowerCase().includes(q)&&!(e.supplier||'').toLowerCase().includes(q)&&!(e.group||'').toLowerCase().includes(q))return false;
+    return true;
+  });
+  const groups=[...new Set(state.entries.map(e=>e.group).filter(Boolean))];
+  const gSel=document.getElementById('group-filter');
+  const gVal=gSel.value;
+  gSel.innerHTML='<option value="">Tất cả nhóm SP</option>'+groups.map(g=>`<option value="${esc(g)}"${gVal===g?' selected':''}>${esc(g)}</option>`).join('');
+  const tbody=document.getElementById('table-body');
+  if(!data.length){tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:48px;color:var(--text-muted)">📂 Không có dữ liệu</td></tr>`;return}
+
+  const canEdit=can('edit_entry');
+  tbody.innerHTML=data.map((e,i)=>{
+    const s=getStatus(e);
+    const dateRange=e.dateFrom||e.dateTo
+      ?`<div style="font-size:11.5px;font-family:'DM Mono',monospace;color:var(--text-2);line-height:1.6">${e.dateFrom?'▶ '+fmtDate(e.dateFrom):'▶ ---'}<br>${e.dateTo?'◀ '+fmtDate(e.dateTo):'◀ ---'}</div>`
+      :`<span style="color:var(--text-muted);font-size:12px">Không hạn</span>`;
+    const pctH=e.pct!=null&&e.pct!==''?`<span class="pct-badge ${e.pct>=0?'pct-up':'pct-down'}">${e.pct>=0?'▲':'▼'} ${Math.abs(e.pct)}%</span>`:'';
+    const hLen=(e.history||[]).length;
+    const descH=e.description?`<div class="td-desc" title="${esc(e.description)}">${esc(e.description)}</div>`:'';
+    const appendixCount=(e.appendixLinks||[]).length;
+    const appendixBadge=appendixCount?`<span style="font-size:10px;color:var(--primary);margin-left:4px">📎${appendixCount}</span>`:'';
+
+    return`<tr onclick="${canEdit?"openEdit('"+e.id+"')":"void(0)"}" style="cursor:${canEdit?'pointer':'default'}">
+      <td style="color:var(--text-muted);font-family:'DM Mono',monospace;font-size:12px">${i+1}</td>
+      <td class="td-name">
+        ${esc(e.name)}${appendixBadge}
+        ${e.supplier?`<div style="font-size:11.5px;color:var(--text-muted);font-weight:400;margin-top:2px">${esc(e.supplier)}</div>`:''}
+        ${descH}${pctH}
+      </td>
+      <td style="font-size:12.5px;color:var(--text-2)">${esc(e.group||'—')}</td>
+      <td>${typeLabel(e.type)}</td>
+      <td>${dateRange}</td>
+      <td><span class="badge-status ${statusClass(s)}">${statusLabel(s)}</span></td>
+      <td class="td-note"><span class="truncate" title="${esc(e.note||'')}">${esc(e.note||'—')}</span></td>
+      <td onclick="event.stopPropagation()"><div class="td-actions">
+        <a class="icon-btn open" href="${esc(e.url)}" target="_blank" title="Mở file">🔗</a>
+        <button class="icon-btn hist" onclick="openHistory('${e.id}')" title="Lịch sử">📜${hLen>0?`<sup style='font-size:9px;color:var(--green)'>${hLen}</sup>`:''}</button>
+        ${canEdit?`<button class="icon-btn" onclick="openEdit('${e.id}')" title="Sửa">✏️</button>
+        <button class="icon-btn del" onclick="deleteEntry('${e.id}')" title="Xoá">🗑</button>`:''}
+      </div></td>
+    </tr>`;
+  }).join('');
+  const sub=document.getElementById('topbar-sub');if(sub)sub.textContent=`(${data.length} file)`;
+}
+
+function fmtDate(d){if(!d)return'';const[y,m,dd]=d.split('-');return`${dd}/${m}/${y}`}
+
+// ═══ APPENDIX LINKS ═══
+function getAppendixRows(){
+  const rows=document.querySelectorAll('#appendix-rows .appendix-row');
+  const links=[];
+  rows.forEach(r=>{
+    const url=r.querySelector('.ap-url').value.trim();
+    const desc=r.querySelector('.ap-desc').value.trim();
+    if(url||desc)links.push({url,desc});
+  });
+  return links;
+}
+
+function addAppendixRow(url='',desc=''){
+  const container=document.getElementById('appendix-rows');
+  const row=document.createElement('div');
+  row.className='appendix-row';
+  row.innerHTML=`
+    <input class="form-input ap-url" type="url" placeholder="https://docs.google.com/..." value="${esc(url)}" style="flex:2">
+    <input class="form-input ap-desc" placeholder="Mô tả đường dẫn..." value="${esc(desc)}" style="flex:1.5">
+    <button class="btn-ghost" onclick="this.parentElement.remove();updateAppendixEmpty()" title="Xoá">✕</button>
+  `;
+  container.appendChild(row);
+  updateAppendixEmpty();
+}
+
+function updateAppendixEmpty(){
+  const rows=document.querySelectorAll('#appendix-rows .appendix-row');
+  document.getElementById('appendix-empty').style.display=rows.length?'none':'block';
+}
+
+function renderAppendixRows(links){
+  document.getElementById('appendix-rows').innerHTML='';
+  if(links&&links.length){links.forEach(l=>addAppendixRow(l.url||'',l.desc||''))}
+  updateAppendixEmpty();
+}
+
+// ═══ CRUD ═══
+function openAddModal(){
+  if(!can('edit_entry')){toast('Không có quyền','⚠️');return}
+  editingId=null;
+  document.getElementById('form-title').textContent='➕ Thêm báo giá mới';
+  ['f-name','f-url','f-group','f-supplier','f-from','f-to','f-note','f-pct','f-by','f-desc'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-type').value='sheet';
+  populateIndustrySelect('f-industry');
+  renderAppendixRows([]);
+  openModal('modal-form');
+}
+
+function openEdit(id){
+  if(!can('edit_entry'))return;
+  const e=state.entries.find(x=>x.id===id);if(!e)return;
+  editingId=id;
+  document.getElementById('form-title').textContent='✏️ Chỉnh sửa báo giá';
+  document.getElementById('f-name').value=e.name||'';
+  document.getElementById('f-desc').value=e.description||'';
+  document.getElementById('f-url').value=e.url||'';
+  document.getElementById('f-group').value=e.group||'';
+  document.getElementById('f-supplier').value=e.supplier||'';
+  document.getElementById('f-from').value=e.dateFrom||'';
+  document.getElementById('f-to').value=e.dateTo||'';
+  document.getElementById('f-note').value=e.note||'';
+  document.getElementById('f-pct').value=e.pct!=null?e.pct:'';
+  document.getElementById('f-by').value=e.updatedBy||'';
+  document.getElementById('f-type').value=e.type||'sheet';
+  populateIndustrySelect('f-industry',e.industry);
+  renderAppendixRows(e.appendixLinks||[]);
+  openModal('modal-form');
+}
+
+function saveEntry(){
+  const name=document.getElementById('f-name').value.trim();
+  const url=document.getElementById('f-url').value.trim();
+  if(!name){toast('Nhập tên bảng giá','⚠️');return}
+  if(!url){toast('Nhập URL','⚠️');return}
+  const data={
+    name,url,
+    description:document.getElementById('f-desc').value.trim(),
+    industry:document.getElementById('f-industry').value,
+    group:document.getElementById('f-group').value.trim(),
+    type:document.getElementById('f-type').value,
+    supplier:document.getElementById('f-supplier').value.trim(),
+    dateFrom:document.getElementById('f-from').value,
+    dateTo:document.getElementById('f-to').value,
+    note:document.getElementById('f-note').value.trim(),
+    pct:document.getElementById('f-pct').value!==''?parseFloat(document.getElementById('f-pct').value):null,
+    updatedBy:document.getElementById('f-by').value.trim(),
+    updatedAt:new Date().toISOString().slice(0,10),
+    appendixLinks:getAppendixRows()
+  };
+  if(editingId){
+    const idx=state.entries.findIndex(e=>e.id===editingId);
+    const old=state.entries[idx];
+    if((data.note&&data.note!==old.note)||data.pct!=null){
+      if(!old.history)old.history=[];
+      old.history.unshift({date:data.updatedAt,note:data.note||old.note,pct:data.pct,by:data.updatedBy});
+      data.history=old.history;
+    }else{data.history=old.history||[]}
+    state.entries[idx]={...old,...data};
+    toast('Đã cập nhật ✅','✅');
+  }else{
+    data.id=uid();
+    data.history=data.note?[{date:data.updatedAt,note:data.note,pct:data.pct,by:data.updatedBy}]:[];
+    state.entries.unshift(data);
+    toast('Đã thêm báo giá mới ✅','✅');
+  }
+  save();closeModal('modal-form');renderTable();updateSidebar();refreshNoticeBar();
+}
+
+function deleteEntry(id){
+  if(!can('edit_entry')){toast('Không có quyền','⚠️');return}
+  if(!confirm('Xoá báo giá này?'))return;
+  state.entries=state.entries.filter(e=>e.id!==id);
+  save();renderTable();updateSidebar();refreshNoticeBar();toast('Đã xoá','🗑');
+}
+
+// ═══ HISTORY ═══
+function openHistory(id){
+  const e=state.entries.find(x=>x.id===id);if(!e)return;
+  document.getElementById('hist-name').textContent=e.name;
+  const list=e.history||[];
+  const el=document.getElementById('hist-list');
+  if(!list.length){el.innerHTML='<div style="color:var(--text-muted);font-size:13px">Chưa có lịch sử</div>';
+  }else{
+    el.innerHTML=list.map(h=>`<div class="history-item">
+      <div class="history-date">📅 ${h.date||'—'}</div>
+      <div class="history-note">${esc(h.note||'Cập nhật')}
+        ${h.pct!=null&&h.pct!==''?`<span class="pct-badge ${h.pct>=0?'pct-up':'pct-down'}">${h.pct>=0?'▲':'▼'} ${Math.abs(h.pct)}%</span>`:''}
+      </div>
+      ${h.by?`<div class="history-by">👤 ${esc(h.by)}</div>`:''}
+    </div>`).join('');
+  }
+  openModal('modal-hist');
+}
+
+// ═══ NOTICES (managed like entries) ═══
+function openNoticeModal(){
+  populateIndustrySelect('n-industry');
+  document.getElementById('n-title').value='';
+  document.getElementById('n-content').value='';
+  document.getElementById('n-url').value='';
+  document.getElementById('n-date').value=new Date().toISOString().slice(0,10);
+  // Hide add form for viewers
+  document.getElementById('notice-add-section').style.display=can('edit_notice')?'':'none';
+  renderNoticeList();
+  openModal('modal-notice');
+}
+
+function saveNotice(){
+  if(!can('edit_notice')){toast('Không có quyền','⚠️');return}
+  const title=document.getElementById('n-title').value.trim();
+  if(!title){toast('Nhập tiêu đề thông báo','⚠️');return}
+  state.notices.unshift({
+    id:uid(),
+    title,
+    content:document.getElementById('n-content').value.trim(),
+    url:document.getElementById('n-url').value.trim(),
+    date:document.getElementById('n-date').value,
+    industry:document.getElementById('n-industry').value
+  });
+  save();renderNoticeList();refreshNoticeBar();refreshNoticeCount();
+  document.getElementById('n-title').value='';
+  document.getElementById('n-content').value='';
+  document.getElementById('n-url').value='';
+  toast('Đã thêm thông báo ✅','✅');
+}
+
+function renderNoticeList(){
+  const el=document.getElementById('notice-list-modal');
+  if(!state.notices.length){el.innerHTML='<div style="color:var(--text-muted);font-size:12.5px">Chưa có thông báo nào</div>';return}
+  const canDel=can('edit_notice');
+  el.innerHTML=state.notices.map(n=>`
+    <div style="background:var(--gray-light);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:10px;position:relative">
+      <div style="font-weight:600;font-size:13.5px;color:var(--text);margin-bottom:4px">${esc(n.title||n.content||'—')}</div>
+      ${n.content&&n.title?`<div style="font-size:12.5px;color:var(--text-2);margin-bottom:4px">${esc(n.content)}</div>`:''}
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:11px;color:var(--text-muted)">📅 ${n.date||'—'}</span>
+        ${n.industry?`<span style="font-size:11px;color:var(--text-muted)">📦 ${esc(n.industry)}</span>`:''}
+        ${n.url?`<a href="${esc(n.url)}" target="_blank" style="font-size:11px;color:var(--primary);text-decoration:none">🔗 Mở link</a>`:''}
+      </div>
+      ${canDel?`<button onclick="deleteNotice('${n.id}')" style="position:absolute;top:10px;right:10px;background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:14px" title="Xoá">✕</button>`:''}
+    </div>`).join('');
+}
+
+function deleteNotice(id){
+  if(!can('edit_notice'))return;
+  state.notices=state.notices.filter(n=>n.id!==id);
+  save();renderNoticeList();refreshNoticeBar();refreshNoticeCount();
+}
+
+function refreshNoticeBar(){
+  const bar=document.getElementById('notice-bar');
+  const items=document.getElementById('notice-items');
+  if(!state.notices.length){bar.classList.add('hidden');return}
+  bar.classList.remove('hidden');
+  items.innerHTML=state.notices.slice(0,3).map(n=>`<li>${esc(n.title||n.content)} <span style="color:var(--text-muted);font-size:11px">(${n.date||''})</span>${n.url?` <a href="${esc(n.url)}" target="_blank">🔗</a>`:''}</li>`).join('');
+}
+
+function refreshNoticeCount(){
+  const cutoff=new Date();cutoff.setMonth(cutoff.getMonth()-2);
+  const recent=state.notices.filter(n=>n.date&&new Date(n.date)>=cutoff);
+  const cnt=recent.length;
+  const badge=document.getElementById('badge-notices');
+  if(badge){badge.textContent=cnt;badge.classList.toggle('badge-notify',cnt>0)}
+  document.getElementById('s-notices').textContent=cnt;
+  const dot=document.getElementById('s-notices-dot');
+  dot.style.display=cnt>0?'':'none';dot.textContent=cnt;
+  const tb=document.getElementById('topbar-notice-badge');
+  tb.style.display=cnt>0?'':'none';tb.textContent=cnt;
+}
+
+// ═══ INDUSTRY (rename) ═══
+function openIndustryModal(){renderIndustryList();cancelRenameIndustry();openModal('modal-industry')}
+function addIndustry(){
+  const v=document.getElementById('new-industry').value.trim();if(!v)return;
+  if(state.industries.includes(v)){toast('Đã tồn tại','⚠️');return}
+  state.industries.push(v);save();renderIndustryList();updateSidebar();
+  document.getElementById('new-industry').value='';toast('Đã thêm','✅');
+}
+function removeIndustry(ind){
+  if(state.entries.some(e=>e.industry===ind)){toast('Không thể xoá — có file dùng ngành này','⚠️');return}
+  state.industries=state.industries.filter(x=>x!==ind);save();renderIndustryList();updateSidebar();
+}
+function startRenameIndustry(ind){
+  renamingIndustry=ind;
+  document.getElementById('rename-industry-box').style.display='';
+  document.getElementById('rename-old-label').textContent=ind;
+  document.getElementById('rename-industry-input').value=ind;
+  document.getElementById('rename-industry-input').focus();
+}
+function confirmRenameIndustry(){
+  const n=document.getElementById('rename-industry-input').value.trim();
+  if(!n){toast('Tên trống','⚠️');return}
+  if(n===renamingIndustry){cancelRenameIndustry();return}
+  if(state.industries.includes(n)){toast('Tên đã tồn tại','⚠️');return}
+  const idx=state.industries.indexOf(renamingIndustry);if(idx!==-1)state.industries[idx]=n;
+  state.entries.forEach(e=>{if(e.industry===renamingIndustry)e.industry=n});
+  state.notices.forEach(x=>{if(x.industry===renamingIndustry)x.industry=n});
+  if(currentIndustry===renamingIndustry)currentIndustry=n;
+  save();renamingIndustry=null;renderIndustryList();updateSidebar();renderTable();cancelRenameIndustry();toast('Đã đổi tên','✅');
+}
+function cancelRenameIndustry(){renamingIndustry=null;document.getElementById('rename-industry-box').style.display='none'}
+function renderIndustryList(){
+  document.getElementById('industry-list').innerHTML=state.industries.map(ind=>`
+    <div class="industry-tag"><span>📦</span> ${esc(ind)}
+      <span class="edit-ind" onclick="event.stopPropagation();startRenameIndustry('${esc(ind)}')" title="Đổi tên">✏️</span>
+      <span class="remove" onclick="event.stopPropagation();removeIndustry('${esc(ind)}')" title="Xoá">×</span>
+    </div>`).join('');
+}
+function populateIndustrySelect(id,sel=''){
+  const el=document.getElementById(id);if(!el)return;
+  el.innerHTML='<option value="">-- Chọn --</option>'+state.industries.map(ind=>`<option value="${esc(ind)}"${sel===ind?' selected':''}>${esc(ind)}</option>`).join('');
+}
+
+// ═══ MODAL ═══
+function openModal(id){document.getElementById(id).classList.add('open')}
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+document.querySelectorAll('.overlay').forEach(el=>{el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open')})});
+
+// ═══ TOAST ═══
+let _tt;
+function toast(m,icon='ℹ️'){const el=document.getElementById('toast');el.innerHTML=icon+' '+m;el.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>el.classList.remove('show'),2600)}
+
+// ═══ DEMO DATA ═══
+if(!state.entries.length){
+  const today=new Date();
+  const d=o=>{const x=new Date(today);x.setDate(x.getDate()+o);return x.toISOString().slice(0,10)};
+  state.entries=[
+    {id:uid(),name:'Bảng giá thép cuộn Q2-2025',description:'Sheet tổng hợp giá thép cuộn cán nóng/cán nguội EXW và CIF',url:'https://docs.google.com/spreadsheets/d/example1',industry:'Vật liệu xây dựng',group:'Thép tấm & cuộn',type:'sheet',supplier:'Tập đoàn Hòa Phát',dateFrom:d(-30),dateTo:d(60),note:'Tăng 5.2% do chi phí vận tải',pct:5.2,updatedBy:'Nguyễn Văn A',updatedAt:d(-5),history:[{date:d(-5),note:'Tăng 5.2%',pct:5.2,by:'Nguyễn Văn A'}],appendixLinks:[{url:'https://docs.google.com/spreadsheets/d/calc1',desc:'File tính giá thành sản phẩm'},{url:'https://docs.google.com/spreadsheets/d/calc2',desc:'Bảng so sánh giá NVL đầu vào'}]},
+    {id:uid(),name:'Báo giá ống nhựa PPR & HDPE',description:'Bảng giá ống nhựa chịu nhiệt PPR/HDPE đường kính 20-315mm',url:'https://docs.google.com/spreadsheets/d/example2',industry:'Vật liệu xây dựng',group:'Ống nhựa',type:'sheet',supplier:'Công ty Tiền Phong',dateFrom:d(-15),dateTo:d(15),note:'Sắp hết hạn',pct:-2.1,updatedBy:'Trần Thị B',updatedAt:d(-10),history:[{date:d(-10),note:'Giảm 2.1%',pct:-2.1,by:'Trần Thị B'}],appendixLinks:[]},
+    {id:uid(),name:'Giá vật tư điện Schneider 2024',description:'Catalog giá CB, MCCB, ACB dòng Acti9 & Compact',url:'https://docs.google.com/document/d/example3',industry:'Thiết bị điện',group:'CB & APTOMAT',type:'doc',supplier:'Schneider Electric VN',dateFrom:d(-200),dateTo:d(-10),note:'Đã hết hạn — chờ bảng giá 2025',pct:null,updatedBy:'Lê Minh C',updatedAt:d(-200),history:[{date:d(-200),note:'Ban hành bảng giá 2024',pct:null,by:'Lê Minh C'}],appendixLinks:[{url:'https://docs.google.com/spreadsheets/d/calc3',desc:'File so sánh Schneider vs ABB'}]},
+    {id:uid(),name:'Bảng giá cáp điện Cadivi 2025',description:'Cáp đồng PVC, XLPE 1-4 lõi, 1.5-400mm2',url:'https://docs.google.com/spreadsheets/d/example5',industry:'Thiết bị điện',group:'Cáp điện & dây dẫn',type:'sheet',supplier:'Công ty Cadivi',dateFrom:d(-5),dateTo:d(90),note:'Tăng theo giá đồng LME',pct:7.8,updatedBy:'Nguyễn Văn A',updatedAt:d(-5),history:[{date:d(-5),note:'Tăng 7.8%',pct:7.8,by:'Nguyễn Văn A'}],appendixLinks:[]},
+  ];
+  state.notices=[
+    {id:uid(),title:'Thông báo tăng giá thép Q2-2025',content:'Thép cuộn Hòa Phát tăng 5.2% từ tháng 3/2026',url:'https://docs.google.com/document/d/notice1',date:d(-5),industry:'Vật liệu xây dựng'},
+    {id:uid(),title:'Điều chỉnh giá cáp Cadivi',content:'Cadivi tăng 7.8% theo giá đồng LME',url:'https://docs.google.com/document/d/notice2',date:d(-5),industry:'Thiết bị điện'},
+    {id:uid(),title:'Khuyến mãi ống nhựa Tiền Phong Q1',content:'Giảm 2.1% chương trình khuyến mãi',url:'',date:d(-15),industry:'Vật liệu xây dựng'},
+  ];
+  save();
+}
+
+// ═══ BOOT ═══
+if(currentUser){showApp()}else{document.getElementById('auth-screen').style.display='';document.getElementById('app-main').classList.remove('show')}
+document.getElementById('login-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+document.getElementById('login-email').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+</script>
+</body>
+</html>
